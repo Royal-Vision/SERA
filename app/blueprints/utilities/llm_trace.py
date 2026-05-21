@@ -1,6 +1,7 @@
 import mlflow
 import logging
 
+
 from app.blueprints.prompts.rewriter_prompt import register_prompts
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class MLflowTracker:
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         mlflow.set_experiment(EXPERIMENT_NAME)
         mlflow.langchain.autolog()
-        register_prompts()
+        # register_prompts()
 
         self._initialized = True
         logger.info(f"MLflow initialized → {MLFLOW_TRACKING_URI} | {EXPERIMENT_NAME}")
@@ -42,6 +43,8 @@ class MLflowTracker:
         """Fetch prompt template from MLflow registry."""
         prompt = mlflow.genai.load_prompt(f"prompts:/{name}@{version}")
         return prompt.template
+
+
 
 
 # Singleton instance — import this everywhere

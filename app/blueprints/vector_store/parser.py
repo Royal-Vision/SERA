@@ -7,7 +7,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
-
+f"/{sett}"
 # ─────────────────────────────────────────────
 # Config
 # ─────────────────────────────────────────────

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
 from FlagEmbedding import BGEM3FlagModel
 
+from app.blueprints.vector_store.retrive import retrieve
 from app.configs.logger import get_logger
 
 load_dotenv()
@@ -99,3 +100,15 @@ load_and_insert()
 
 info = client.get_collection(COLLECTION_NAME)
 logger.info(f"✅ Collection verified — points_count: {info.points_count}")
+
+if __name__ == "__main__":
+    info = client.get_collection(COLLECTION_NAME)
+    print(" 🔰 points_count:", info.points_count)  
+    retrieved_ = retrieve(
+        client=client, 
+        collection_name=COLLECTION_NAME, 
+        embedder=embedder, 
+        query="What cardiac condition allows a blood clot to travel from leg veins to the brain causing stroke?",
+    ) 
+
+    print("✅ retrieved\n",retrieved_)

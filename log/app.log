@@ -394,3 +394,15 @@ Output:
 2026-05-21 15:56:58 | INFO | client.py:47 | Loading data from: C:\Users\ghoniem\Downloads\medical_o1_sft.json
 2026-05-21 15:56:59 | INFO | client.py:52 | Loaded 19704 rows → 1642 batches of 12
 2026-05-21 15:56:59 | INFO | client.py:69 | First vector dim=1024 | sum=-0.7383
+2026-05-21 16:00:39 | INFO | client.py:90 | ✅ Insert complete — inserted: 19704 | failed: 0 | total: 19704
+2026-05-21 16:00:39 | INFO | client.py:101 | ✅ Collection verified — points_count: 19704
+2026-05-21 16:03:42 | INFO | client.py:27 | Dropping existing collection...
+2026-05-21 16:03:42 | INFO | client.py:37 | ✅ Collection 'medical_o1_sft' recreated with size=1024
+2026-05-21 16:03:42 | INFO | client.py:48 | Loading data from: C:\Users\ghoniem\Downloads\medical_o1_sft.json
+2026-05-21 16:03:42 | INFO | client.py:53 | Loaded 19704 rows → 1642 batches of 12
+2026-05-21 16:03:43 | INFO | client.py:70 | First vector dim=1024 | sum=-0.7383
+2026-05-21 16:07:28 | INFO | client.py:91 | ✅ Insert complete — inserted: 19704 | failed: 0 | total: 19704
+2026-05-21 16:07:28 | INFO | client.py:102 | ✅ Collection verified — points_count: 19704
+2026-05-21 16:07:28 | INFO | retrive.py:15 | Retrieving top-20 for query: 'What cardiac condition allows a blood clot to travel from leg veins to the brain causing stroke?'
+2026-05-21 16:07:28 | INFO | retrive.py:25 | Query embedded — dim: 1024 | sum: -0.7703
+2026-05-21 16:07:28 | INFO | retrive.py:55 | ✅ Retrieved 20 | top=0.6640 | low=0.5779
