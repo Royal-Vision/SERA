@@ -1,0 +1,372 @@
+2026-05-21 11:49:31 | INFO | rewriter_llm.py:28 | Prompt loaded from MLflow: version=1
+2026-05-21 11:49:31 | INFO | rewriter_llm.py:41 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 11:49:34 | INFO | rewriter_llm.py:62 | Model ready.
+2026-05-21 11:51:27 | INFO | rewriter_llm.py:28 | 💥 Prompt loaded from MLflow: obj=PromptVersion(name=QueryRewriter, version=1, template=You are a multilingual query r...)
+2026-05-21 11:51:27 | INFO | rewriter_llm.py:32 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 11:51:27 | INFO | rewriter_llm.py:42 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 11:51:30 | INFO | rewriter_llm.py:63 | Model ready.
+2026-05-21 11:56:34 | INFO | rewriter_llm.py:28 | 💥 Prompt loaded from MLflow: obj=PromptVersion(name=QueryRewriter, version=1, template=You are a multilingual query r...)
+2026-05-21 11:56:34 | INFO | rewriter_llm.py:32 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 11:56:34 | INFO | rewriter_llm.py:42 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 11:56:37 | INFO | rewriter_llm.py:63 | Model ready.
+2026-05-21 11:57:34 | INFO | rewriter_llm.py:28 | 💥 Prompt loaded from MLflow: obj=PromptVersion(name=QueryRewriter, version=1, template=You are a multilingual query r...)
+2026-05-21 11:57:34 | INFO | rewriter_llm.py:32 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 11:57:34 | INFO | rewriter_llm.py:42 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 11:57:37 | INFO | rewriter_llm.py:63 | Model ready.
+2026-05-21 11:59:39 | INFO | rewriter_llm.py:30 | 💥 Prompt loaded from MLflow: version=1
+2026-05-21 11:59:39 | INFO | rewriter_llm.py:35 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 11:59:39 | INFO | rewriter_llm.py:45 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 11:59:42 | INFO | rewriter_llm.py:65 | Model ready.
+2026-05-21 12:00:05 | INFO | rewriter_llm.py:30 | 💥 Prompt loaded from MLflow: version=1
+2026-05-21 12:00:05 | INFO | rewriter_llm.py:35 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 12:00:05 | INFO | rewriter_llm.py:45 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 12:00:07 | INFO | rewriter_llm.py:65 | Model ready.
+2026-05-21 12:01:20 | INFO | rewriter_llm.py:32 | 💥 Prompt loaded from MLflow: version=1
+2026-05-21 12:01:20 | INFO | rewriter_llm.py:35 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 12:01:20 | INFO | rewriter_llm.py:45 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 12:01:23 | INFO | rewriter_llm.py:65 | Model ready.
+2026-05-21 12:02:55 | INFO | rewriter_llm.py:32 | 💥 Prompt loaded from MLflow: version=1
+2026-05-21 12:02:55 | INFO | rewriter_llm.py:35 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 12:02:55 | INFO | rewriter_llm.py:45 | Loading Qwen/Qwen2.5-1.5B-Instruct on cuda …
+2026-05-21 12:02:58 | INFO | rewriter_llm.py:65 | Model ready.
+2026-05-21 12:06:34 | INFO | rewriter_llm.py:32 | 💥 Prompt loaded from MLflow: version=1
+2026-05-21 12:06:34 | INFO | rewriter_llm.py:35 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 12:06:34 | INFO | rewriter_llm.py:45 | Loading facebook/nllb-200-distilled-600M on cuda …
+2026-05-21 12:08:45 | INFO | rewriter_llm.py:32 | 💥 Prompt loaded from MLflow: version=1
+2026-05-21 12:08:45 | INFO | rewriter_llm.py:35 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 12:08:45 | INFO | rewriter_llm.py:45 | Loading Qwen/Qwen2.5-3B-Instruct on cuda …
+2026-05-21 12:09:54 | INFO | rewriter_llm.py:65 | Model ready.
+2026-05-21 12:11:05 | INFO | rewriter_llm.py:32 | 💥 Prompt loaded from MLflow: version=1
+2026-05-21 12:11:05 | INFO | rewriter_llm.py:35 | 💥 SYSTEM_PROMPT=You are a multilingual query rewriting assistant for a RAG search system.
+
+TASK:
+Given a user query, return a JSON object with three fields:
+- user_query: rewrite the query with correct grammar in its ORIGINAL language
+- normalized_query: translate the query to English for vector search normalization
+- query_lang: detected language code ("ar" or "en")
+
+STRICT RULES:
+1. user_query MUST stay in the original language (Arabic in → Arabic out).
+2. normalized_query MUST always be in English.
+3. Preserve names, brands, locations, and technical terms exactly.
+4. Fix spelling and grammar in user_query.
+5. normalized_query should be clean, search-optimized English.
+6. Return ONLY valid JSON. No explanation. No extra text.
+
+EXAMPLES:
+
+Input: فنادق رخيصه قريب مطار دبي
+Output:
+{
+  "user_query": "فنادق رخيصة قريبة من مطار دبي",
+  "normalized_query": "cheap hotels near Dubai Airport",
+  "query_lang": "ar"
+}
+
+Input: cheap hotel near dubai airport wifi
+Output:
+{
+  "user_query": "Cheap hotels near Dubai Airport with Wi-Fi",
+  "normalized_query": "cheap hotels near Dubai Airport with Wi-Fi",
+  "query_lang": "en"
+}
+
+2026-05-21 12:11:05 | INFO | rewriter_llm.py:45 | Loading Qwen/Qwen3-4B-Instruct-2507 on cuda …
+2026-05-21 12:12:50 | INFO | rewriter_llm.py:65 | Model ready.
