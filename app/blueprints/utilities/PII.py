@@ -21,29 +21,29 @@ scrubber = PIIScrubber()  # always returns same instance
 
 
 """ -------------------- Test ------------------------------- """
-# user_input = """
-# Patient Name: Ahmed Ghoniem
-# DOB: 14/06/1989
-# Gender: Male
-# Emirates ID: 784-1989-1234567-1
-# Passport Number: N12345678
-# Phone: +971 50 123 4567
-# Email: ahmed.ghoniem@example.com
-# Address: Marina Tower 4, Apartment 1102, Abu Dhabi
+user_input = """
+Patient Name: Ahmed Ghoniem
+DOB: 14/06/1989
+Gender: Male
+Emirates ID: 784-1989-1234567-1
+Passport Number: N12345678
+Phone: +971 50 123 4567
+Email: ahmed.ghoniem@example.com
+Address: Marina Tower 4, Apartment 1102, Abu Dhabi
 
-# Chief Complaint:
-# Persistent chest pain for 3 days, worsens during exertion.
+Chief Complaint:
+Persistent chest pain for 3 days, worsens during exertion.
 
-# Medical History:
-# Hypertension
-# Type 2 Diabetes
+Medical History:
+Hypertension
+Type 2 Diabetes
 
-# Current Medications:
-# Metformin 500mg twice daily
-# Lisinopril 10mg daily"""
-# clean_query = scrubber.scrub(user_input)
+Current Medications:
+Metformin 500mg twice daily
+Lisinopril 10mg daily"""
+clean_query = scrubber.scrub(user_input)
 
-# print(f"cleaned user input: {clean_query}")
+print(f"cleaned user input: {clean_query}")
 """ ------------------------ test output ----------------------------- """
 # cleaned user input: 
 # Patient Name: <PERSON>: <DATE_TIME>

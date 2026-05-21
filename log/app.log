@@ -370,3 +370,27 @@ Output:
 
 2026-05-21 12:11:05 | INFO | rewriter_llm.py:45 | Loading Qwen/Qwen3-4B-Instruct-2507 on cuda …
 2026-05-21 12:12:50 | INFO | rewriter_llm.py:65 | Model ready.
+2026-05-21 14:07:15 | INFO | client.py:33 | Loading data from: C:\Users\ghoniem\Downloads\medical_o1_sft.json
+2026-05-21 14:07:15 | INFO | client.py:38 | Loaded 19704 rows → 1642 batches of 12
+2026-05-21 14:10:55 | INFO | client.py:72 | ✅ Insert complete — inserted: 19704 | failed: 0 | total: 19704
+2026-05-21 15:27:18 | INFO | retrive.py:15 | Retrieving top-20 for query: 'Given the symptoms of sudden weakness in the left arm and leg, recent long-distance travel, and the presence of swollen and tender right lower leg, what specific cardiac abnormality is most likely to be found upon further evaluation that could explain these findings?'
+2026-05-21 15:27:19 | INFO | retrive.py:25 | Query embedded — vector dim: 1024
+2026-05-21 15:27:19 | INFO | retrive.py:43 | ✅ Retrieved 20 results | top score: 0.0000
+2026-05-21 15:31:52 | INFO | retrive.py:15 | Retrieving top-20 for query: 'Given the symptoms of sudden weakness in the left arm and leg, recent long-distance travel, and the presence of swollen and tender right lower leg, what specific cardiac abnormality is most likely to be found upon further evaluation that could explain these findings?'
+2026-05-21 15:31:53 | INFO | retrive.py:25 | Query embedded — dim: 1024 | sum: -0.7571
+2026-05-21 15:31:53 | WARNING | retrive.py:42 | ⚠️ No results returned from Qdrant
+2026-05-21 15:34:11 | INFO | retrive.py:15 | Retrieving top-20 for query: 'What cardiac condition allows a blood clot to travel from leg veins to the brain causing stroke?'
+2026-05-21 15:34:12 | INFO | retrive.py:25 | Query embedded — dim: 1024 | sum: -0.7703
+2026-05-21 15:34:12 | WARNING | retrive.py:42 | ⚠️ No results returned from Qdrant
+2026-05-21 15:35:24 | INFO | retrive.py:15 | Retrieving top-20 for query: 'What cardiac condition allows a blood clot to travel from leg veins to the brain causing stroke?'
+2026-05-21 15:35:24 | INFO | retrive.py:25 | Query embedded — dim: 1024 | sum: -0.7703
+2026-05-21 15:35:24 | WARNING | retrive.py:42 | ⚠️ No results returned from Qdrant
+2026-05-21 15:38:59 | INFO | retrive.py:15 | Retrieving top-20 for query: 'What cardiac condition allows a blood clot to travel from leg veins to the brain causing stroke?'
+2026-05-21 15:39:00 | INFO | retrive.py:25 | Query embedded — dim: 1024 | sum: -0.7703
+2026-05-21 15:39:00 | INFO | retrive.py:55 | ✅ Retrieved 20 | top=0.0000 | low=0.0000
+2026-05-21 15:56:13 | INFO | client.py:26 | Dropping existing collection...
+2026-05-21 15:56:58 | INFO | client.py:26 | Dropping existing collection...
+2026-05-21 15:56:58 | INFO | client.py:36 | ✅ Collection 'medical_o1_sft' recreated with size=1024
+2026-05-21 15:56:58 | INFO | client.py:47 | Loading data from: C:\Users\ghoniem\Downloads\medical_o1_sft.json
+2026-05-21 15:56:59 | INFO | client.py:52 | Loaded 19704 rows → 1642 batches of 12
+2026-05-21 15:56:59 | INFO | client.py:69 | First vector dim=1024 | sum=-0.7383
