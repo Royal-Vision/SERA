@@ -3259,7 +3259,7 @@ requires-dist = [
     { name = "langchain-google-genai", specifier = ">=4.2.2" },
     { name = "langchain-huggingface", specifier = ">=1.2.2" },
     { name = "minio", specifier = ">=7.2.20" },
-    { name = "mlflow", specifier = ">=3.12.0" },
+    { name = "mlflow", extras = ["ragas"], specifier = ">=3.12.0" },
     { name = "ninja", specifier = ">=1.13.0" },
     { name = "orjson", specifier = ">=3.11.8" },
     { name = "presidio-analyzer", specifier = ">=2.2.362" },

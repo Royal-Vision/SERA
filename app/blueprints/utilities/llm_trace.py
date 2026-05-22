@@ -1,7 +1,6 @@
 import mlflow
 import logging
 
-
 from app.blueprints.prompts.rewriter_prompt import register_prompts
 
 logger = logging.getLogger(__name__)
