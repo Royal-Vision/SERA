@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List
 
 import pandas as pd
@@ -34,7 +35,7 @@ EVAL_SIZE       = 300      # held out — never in Qdrant
 RAGAS_SAMPLES   = 50       # costly LLM eval subset
 TOP_K           = 20       # retrieve from Qdrant
 TOP_N           = 5        # keep after reranking → sent to LLM
-
+RANDOM_STATE    = 42
 
 class RetrievedDoc(BaseModel):
     question:     str
@@ -72,7 +73,7 @@ class RagPipeline:
         self._initialized = True
         logger.info(" ✅ All models ready.")
 
-    def training_and_testing(self, file_path: str):
+    def training_and_testing(self, file_path: str = DATA_PATH):
         TOTAL_ROWS = 19_704
         EVAL_SIZE = 300
         RANDOM_STATE = 42
@@ -93,6 +94,25 @@ class RagPipeline:
 
         # remaining training set
         train_df = df.iloc[EVAL_SIZE:].copy()
+
+        DATA_DIR = Path(r"app\blueprints\data\medical_o1_sft_")
+        TRAIN_FILE = DATA_DIR / "train.csv"
+        TEST_FILE  = DATA_DIR / "test.csv"
+
+        if TRAIN_FILE.exists() and TEST_FILE.exists():
+            logger.info("✅ Train/test files already exist, loading from disk...")
+            train_df = pd.read_csv(TRAIN_FILE)
+            test_df  = pd.read_csv(TEST_FILE)
+            return train_df, test_df
+        
+        # ❌ Files missing → create them once
+        logger.info("📂 Files not found, creating train/test split...")
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+        train_df.to_csv(TRAIN_FILE, index=False)
+        eval_df.to_csv(TEST_FILE,  index=False)
+        logger.info(f"✅ Saved → train: {len(train_df)} rows | test: {len(eval_df)} rows")
 
         return train_df, eval_df
 
@@ -120,7 +140,7 @@ class RagPipeline:
             total=total_batches, desc="Inserting", unit="batch"):
             batch = train_df.iloc[start: start + batch_size]
             try:
-                embeddings = self.embedder.encode(
+                embeddings = self.embedding.encode(
                     batch["Response"].tolist(),
                     batch_size=batch_size,
                     max_length=512,
@@ -187,31 +207,31 @@ class RagPipeline:
     def re_rank(self, query: str, docs: list[RetrievedDoc]) -> list[RetrievedDoc]:
         if not docs:
             return []
-    
+
         try:
-            pairs = [[query, doc.response] for doc in docs]
-    
-            with torch.no_grad():
-                scores = self.ranker.compute_score(
-                    pairs,
-                    max_length=1024,
-                    doc_type="text",
-                )
-    
-            for doc, score in zip(docs, scores):
-                doc.rerank_score = round(float(score), 4)
-    
-            reranked = sorted(docs, key=lambda d: d.rerank_score, reverse=True)[:TOP_N]
-    
+            results = self.ranker.rerank(
+                query=query,
+                documents=[doc.response for doc in docs],
+                top_n=TOP_N,
+                max_query_length=512,
+                max_doc_length=1024,
+            )
+
+            reranked: list[RetrievedDoc] = []
+            for r in results:
+                original = docs[r["index"]]
+                original.rerank_score = round(float(r["relevance_score"]), 4)
+                reranked.append(original)
+
             logger.info(
                 f"Reranked → top={reranked[0].rerank_score:.4f} | "
                 f"low={reranked[-1].rerank_score:.4f} | "
                 f"gap={reranked[0].rerank_score - reranked[-1].rerank_score:.4f}"
             )
             return reranked
-    
-        except Exception as e:
-            logger.error(f"Reranker failed: {e}")
+
+        except (RuntimeError, torch.cuda.OutOfMemoryError) as e:
+            logger.error(f"Reranker failed (runtime): {e}")
             return sorted(docs, key=lambda d: d.vector_score, reverse=True)[:TOP_N]
     
     def retrieve_and_rerank(self, query: str) -> list[RetrievedDoc]:
@@ -219,3 +239,22 @@ class RagPipeline:
         reranked = self.re_rank(query, docs)
         return reranked
 
+if __name__ == "__main__":
+    pipeline = RagPipeline()
+
+
+    is_exists_collection = pipeline.client.collection_exists(
+        collection_name=COLLECTION_NAME
+    )
+
+    print(f" ✅ collection name: {COLLECTION_NAME} : ({is_exists_collection})")
+
+    train_df, eval_df = pipeline.training_and_testing()
+    first_question = eval_df["Question"][0]
+    second_question = "my patient has diabetes what should i give him first"
+
+
+    print(f"✅ first_question: {second_question}")
+    result = pipeline.retrieve_and_rerank(query=second_question)
+
+    print(f"✅ result:\n{result}")
