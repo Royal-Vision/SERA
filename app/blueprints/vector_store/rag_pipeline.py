@@ -258,3 +258,4 @@ if __name__ == "__main__":
     result = pipeline.retrieve_and_rerank(query=second_question)
 
     print(f"✅ result:\n{result}")
+

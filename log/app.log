@@ -754,3 +754,7 @@ Output:
 2026-05-23 13:50:14 | INFO | rag_pipeline.py:103 | ✅ Train/test files already exist, loading from disk...
 2026-05-23 13:50:15 | INFO | rag_pipeline.py:195 | Retrieved 20 | top=0.6560 | low=0.6139
 2026-05-23 13:50:20 | INFO | rag_pipeline.py:226 | Reranked → top=0.1648 | low=-0.0244 | gap=0.1892
+2026-05-23 15:24:30 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:24:39 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:24:39 | INFO | dataset.py:70 | Collection 'evaluation_medical_o1_sft' created.
+2026-05-23 15:28:23 | INFO | dataset.py:114 | ✅ Inserted: 19704 | failed: 0
