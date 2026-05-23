@@ -758,3 +758,28 @@ Output:
 2026-05-23 15:24:39 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
 2026-05-23 15:24:39 | INFO | dataset.py:70 | Collection 'evaluation_medical_o1_sft' created.
 2026-05-23 15:28:23 | INFO | dataset.py:114 | ✅ Inserted: 19704 | failed: 0
+2026-05-23 15:43:46 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:43:55 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:43:55 | INFO | dataset.py:139 | ✅ question_uuid: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:44:38 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:44:57 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:45:07 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:45:07 | INFO | dataset.py:140 | ✅ question_uuid: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:45:41 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:45:50 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:45:50 | INFO | dataset.py:140 | ✅ question_uuid: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:47:33 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:47:42 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:47:42 | INFO | dataset.py:144 | ✅ question_uuid: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:47:43 | INFO | dataset.py:148 | ✅ record: points=[ScoredPoint(id='fce9c7e7-d2e9-5219-a131-496c66525f65', version=35, score=0.7133119, payload={'question': 'A 36-year-old man with a history of well-controlled diabetes on metformin and a 20-year smoking habit presents with shortness of breath, fatigue during long walks, a lingering cough, wheezing, and swelling in his legs and abdomen. Given these clinical findings, what is the most likely underlying process causing his abdominal and lower extremity swelling?', 'response': "Based on the clinical findings and the patient's history, the most likely underlying process causing his abdominal and lower extremity swelling is congestive heart failure. His symptoms of shortness of breath, fatigue, lingering cough, wheezing, and particularly the swelling of the legs and abdomen are indicative of fluid accumulation, which commonly results from heart failure. The fact that he has well-controlled diabetes and a long history of smoking are significant risk factors that contribute to cardiovascular issues, supporting the likelihood of heart failure being the underlying cause. While other conditions such as lung disease or liver and kidney issues could also cause similar symptoms, the combination of his clinical presentation and risk factors points most strongly towards congestive heart failure as the root cause."}, vector=None, shard_key=None, order_value=None)]
+2026-05-23 15:50:14 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:50:23 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:50:23 | INFO | dataset.py:152 | ✅ question_uuid: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:50:47 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:50:56 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:50:56 | INFO | dataset.py:152 | ✅ question_uuid: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:50:56 | INFO | dataset.py:156 | ✅ record: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:51:39 | INFO | rag_pipeline.py:59 | Loading models (runs once)...
+2026-05-23 15:51:48 | INFO | rag_pipeline.py:74 |  ✅ All models ready.
+2026-05-23 15:51:48 | INFO | dataset.py:152 | ✅ question_uuid: 27c96a82-1129-5e4c-82af-f1f081ec7909
+2026-05-23 15:51:48 | INFO | dataset.py:156 | ✅ record: [Record(id='27c96a82-1129-5e4c-82af-f1f081ec7909', payload={'question': 'Given the symptoms of sudden weakness in the left arm and leg, recent long-distance travel, and the presence of swollen and tender right lower leg, what specific cardiac abnormality is most likely to be found upon further evaluation that could explain these findings?', 'response': 'The specific cardiac abnormality most likely to be found in this scenario is a patent foramen ovale (PFO). This condition could allow a blood clot from the venous system, such as one from a deep vein thrombosis in the leg, to bypass the lungs and pass directly into the arterial circulation. This can occur when the clot moves from the right atrium to the left atrium through the PFO. Once in the arterial system, the clot can travel to the brain, potentially causing an embolic stroke, which would explain the sudden weakness in the left arm and leg. The connection between the recent travel, which increases the risk of deep vein thrombosis, and the neurological symptoms suggests the presence of a PFO facilitating a paradoxical embolism.'}, vector=None, shard_key=None, order_value=None)]

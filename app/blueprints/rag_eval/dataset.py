@@ -113,7 +113,47 @@ class DatasetVersion:
 
         logger.info(f"✅ Inserted: {inserted} | failed: {failed}")
 
+    # def retrieve_point_id(self, question: str) -> str:
+    #     client = self.rag_pipeline.client
+    #     collection_name: str = "evaluation_medical_o1_sft"
+    #     vector = self.rag_pipeline.embedding.encode(
+    #         [question],
+    #         max_length=512,
+    #     )["dense_vecs"][0]
+
+    #     results = client.query_points(
+    #         collection_name=collection_name,
+    #         query=vector,
+    #         limit=1
+    #     )
+
+    #     return results
+
+
+    def retrieve_point_id(self, question: str) -> str:
+        gold_doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, question))
+
+        results = self.rag_pipeline.client.retrieve(
+            collection_name="evaluation_medical_o1_sft",
+            ids=[gold_doc_id]
+        )
+
+        return results
+
 if __name__ == "__main__":
     data_versions = DatasetVersion()
     
-    
+    """ --------- test the retrieval -------------------- """
+    df = pd.read_json(data_versions.SOURCE_PATH)
+    question_one = df["Question"][0]
+
+    # convert to uuid 5
+    question_uuid = data_versions.compute_sample_ids(question_one)
+    logger.info(f"✅ question_uuid: {question_uuid}")
+
+    # uuid is retrieved
+    record = data_versions.retrieve_point_id(question=question_one)
+    logger.info(f"✅ record: {record}")
+
+
+
