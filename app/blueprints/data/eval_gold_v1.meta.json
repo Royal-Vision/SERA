@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "created_at": "2026-05-23T12:19:06.459813+00:00",
+  "n_samples": 300,
+  "columns": [
+    "sample_id",
+    "question",
+    "ground_truth_answer",
+    "gold_doc_id"
+  ],
+  "source_file": "medical_o1_sft.json",
+  "source_sha256": "6a0289ebe0d07e3e77e8dbc81c31fcfc02cc99c7bca1602694cb2f76d505667e",
+  "dataset_sha256": "92fd993efd4c5209355cdbeef57df44ffbb25b960e7b80f88b944c0a4c64b703",
+  "split_seed": 42,
+  "eval_size_constant": 300
+}
