@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     APP_ENV: str = Field(default="production")
     DEBUG: bool = Field(default=False)
     SECRET_KEY: str
+    METRICS_ENABLED: bool = Field(default=True)
+    METRICS_HTTP_SERVER_ENABLED: bool = Field(default=False)
+    METRICS_PORT: int = Field(default=8000)
 
     # PostgreSQL
     POSTGRES_USER: str
