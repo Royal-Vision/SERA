@@ -63,16 +63,19 @@ class Settings(BaseSettings):
 
     QDRANT_API_KEY: str
 
-    MLFLOW_TRACKING_URI: str
-    EXPERIMENT_NAME: str
+    MLFLOW_TRACKING_URI: str = Field(default="https://mlflow.ghoniem.online")
+    EXPERIMENT_NAME: str = Field(default="sera-ai")
 
-    COLLECTION_NAME: str
-    TOTAL_ROWS: int
-    EVAL_SIZE: int      # held out — never in Qdrant
-    RAGAS_SAMPLES: int       # costly LLM eval subset
-    TOP_K: int       # retrieve from Qdrant
-    TOP_N: int        # keep after reranking → sent to LLM
-    RANDOM_STATE: int
+    # ─── RAG hyperparameters (tunable; defaults live in code) ───
+    # Override via env if needed; otherwise change these values in the file
+    # and commit — they're tracked in git and easy to diff over time.
+    COLLECTION_NAME: str = Field(default="medical_o1_sft")
+    TOTAL_ROWS: int = Field(default=19_704)
+    EVAL_SIZE: int = Field(default=300)       # held out — never in Qdrant
+    RAGAS_SAMPLES: int = Field(default=50)    # costly LLM eval subset
+    TOP_K: int = Field(default=20)            # retrieve from Qdrant
+    TOP_N: int = Field(default=5)             # keep after reranking → sent to LLM
+    RANDOM_STATE: int = Field(default=42)
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -16,8 +16,54 @@ Run:    pytest app/blueprints/rag_eval/tests/test_flow.py -m integration -v
 """
 
 import pytest
+import mlflow
 
 from app.blueprints.rag_eval.mlflow_eval import RagEvalMLflow
+
+
+@pytest.mark.integration
+def test_eval_run_lifecycle(qdrant_reachable, mlflow_reachable):
+    """Open eval_run context, log a dummy metric, close cleanly.
+
+    WHAT IT TESTS — just the MLflow run lifecycle from RagEvalMLflow.eval_run:
+      1. Find-or-create the commit parent run
+      2. Open a child run under it
+      3. Allow logging inside the with-block
+      4. Close cleanly on exit
+
+    WHY IT EXISTS — separates the MLflow plumbing (which needs only MLflow +
+    Qdrant) from scoring (which also needs OpenAI). Lets you verify the run
+    nesting works without paying for any LLM judge calls.
+
+    Cost: $0. Required services: MLflow + Qdrant only (Qdrant because
+    RagEvalMLflow.__init__ instantiates RagPipeline which connects to Qdrant).
+    """
+    ml = RagEvalMLflow()
+
+    with ml.eval_run("pytest-eval-run-lifecycle") as e:
+        # `e is ml` because eval_run yields self
+        assert e is ml, "eval_run should yield the RagEvalMLflow instance"
+
+        # Active run exists and we can log to it
+        active = mlflow.active_run()
+        assert active is not None, "no active MLflow run inside eval_run context"
+        assert active.info.run_name == "pytest-eval-run-lifecycle"
+
+        # Tags from base_tags are present
+        tags = active.data.tags
+        assert tags.get("run_type") == "eval"
+        assert tags.get("pipeline") == "rag"
+        assert "git_sha" in tags
+        assert "git_branch" in tags
+
+        # Caller can log inside the context
+        mlflow.log_param("smoke_param", "lifecycle-test")
+        mlflow.log_metric("smoke_metric", 0.99)
+
+    # After the with-block, no run should be active
+    assert mlflow.active_run() is None, (
+        "eval_run did not clean up the active run on exit"
+    )
 
 
 @pytest.mark.integration
