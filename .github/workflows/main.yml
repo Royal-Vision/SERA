@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: royal
+    runs-on: [self-hosted, royal]
     environment: prod
 
     steps:
