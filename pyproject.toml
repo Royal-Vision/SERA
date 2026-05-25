@@ -41,6 +41,7 @@ dependencies = [
     "langchain-huggingface>=1.2.2",
     "flagembedding>=1.4.0",
     "ragas>=0.4.3",
+    "boto3>=1.43.14",
 ]
 
 [[tool.uv.index]]
@@ -52,5 +53,17 @@ explicit = true
 torch = { index = "pytorch-cu126" }
 torchvision = { index = "pytorch-cu126" }
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-mock>=3.15.1",
+]
+
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+testpaths = ["app/blueprints/rag_eval/tests"]
+markers = [
+    "integration: hits external services (MLflow, Qdrant, OpenAI judge). Slow + may incur small cost.",
+]

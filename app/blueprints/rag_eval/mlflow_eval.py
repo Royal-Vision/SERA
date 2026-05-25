@@ -1,18 +1,21 @@
 
+import subprocess
 from contextlib import contextmanager
-import asyncio
-from typing import Dict, List
-import mlflow
-from uuid import uuid5
 
-import torch
-from app.blueprints.utilities.mlflow_tracker import tracker  # noqa: F401
-from app.blueprints.vector_store.rag_pipeline import RetrievedDoc
-from app.configs.logger import get_logger
+import mlflow
 from mlflow.tracking import MlflowClient
-from app.configs.config import settings
+
+from app.blueprints.utilities.mlflow_tracker import tracker  # noqa: F401
 from app.blueprints.vector_store.rag_pipeline import RagPipeline
-torch.cuda.empty_cache()
+from app.blueprints.rag_eval.dataset import DatasetVersion
+from app.configs.config import settings
+from app.configs.logger import get_logger
+
+from mlflow.genai.scorers import (
+    RetrievalRelevance, RetrievalSufficiency, 
+    Correctness, Completeness, Fluency, RelevanceToQuery
+    )
+from mlflow.genai import evaluate
 
 logger = get_logger()
 
@@ -38,59 +41,35 @@ class RagEvalMLflow:
     def __init__(self):
         if self._initialized:
             return
-        self._initialized = True
-        self._rag_pipeline = RagPipeline()
-
-
-    async def _get_git_sha(self) -> str:
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            "rev-parse",
-            "HEAD",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        stdout, stderr = await proc.communicate()
-
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"Failed to get git SHA: {stderr.decode().strip()}"
-            )
-
-        return stdout.decode().strip()
-    
-    async def _get_git_branch(self) -> str:
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            "rev-parse",
-            "--abbrev-ref",
-            "HEAD",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        stdout, stderr = await proc.communicate()
-
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"Failed to get git branch: {stderr.decode().strip()}"
-            )
-
-        return stdout.decode().strip()
-    
-    async def _check_evaluation_run_exists(self, ):
         
+        self._rag_pipeline = RagPipeline()
+        self._dataset      = DatasetVersion()
+        self._git_sha      = self._get_git_sha()
+        self._git_branch   = self._get_git_branch()
+        self._initialized  = True
 
-        client = MlflowClient(tracking_uri="https://mlflow.ghoniem.online")
-
-        experiment = client.get_experiment_by_name("sera-ai")
-
-        runs = client.search_runs(
-            experiment_ids=[experiment.experiment_id]
+        logger.info(
+            "RagEvalMLflow ready | sha=%s | branch=%s",
+            self._git_sha, self._git_branch,
         )
-        logger.info(f"✅ experiment id : {experiment.experiment_id}")
-        return runs
+
+    @staticmethod
+    def _get_git_sha() -> str:
+        try:
+            return subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], text=True
+            ).strip()
+        except Exception:
+            return "unknown"
+
+    @staticmethod
+    def _get_git_branch() -> str:
+        try:
+            return subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True
+            ).strip()
+        except Exception:
+            return "unknown"
 
     def _get_or_create_commit_parent_run(self) -> str:
         client = MlflowClient(tracking_uri=settings.MLFLOW_TRACKING_URI)
@@ -142,6 +121,7 @@ class RagEvalMLflow:
 
     @contextmanager
     def eval_run(self, run_name: str, tags: dict | None = None):
+        """Pure context manager: open MLflow run under commit parent, yield, close."""
         parent_run_id = self._get_or_create_commit_parent_run()
 
         base_tags = {
@@ -151,7 +131,6 @@ class RagEvalMLflow:
             "git_branch": self._git_branch,
             "parent_type": "commit",
         }
-
         if tags:
             base_tags.update(tags)
 
@@ -162,30 +141,71 @@ class RagEvalMLflow:
         ) as active:
             logger.info(
                 "MLflow child eval run started: %s (%s) under parent %s",
-                run_name,
-                active.info.run_id,
-                parent_run_id,
+                run_name, active.info.run_id, parent_run_id,
             )
-
             yield self
-
             logger.info("MLflow child eval run ended: %s", active.info.run_id)
 
+    def run_evaluation(self, sample_size: int | None = None):
+        """Run the evaluation. Must be called inside an active eval_run() context.
 
+        Parameters
+        ----------
+        sample_size : int | None
+            If set, evaluate only the first N rows. Use small (e.g. 5) for
+            smoke tests; None runs the full eval set.
+        """
+        parquet_path = (
+            self._dataset.OUT_DIR
+            / f"eval_gold_{self._dataset.DATASET_VERSION}.parquet"
+        )
+        eval_df, metadata = self._dataset.load_eval_dataset(parquet_path=parquet_path)
 
-async def _test():
-    rag = RagEvalMLflow()
+        if sample_size:
+            eval_df = eval_df.head(sample_size)
 
-    git_sha, git_branch = await asyncio.gather(
-        rag._get_git_sha(),
-        rag._get_git_branch(),
-    )
+        # ── params & tags inside the active run ──
+        mlflow.log_param("top_k", settings.TOP_K)
+        mlflow.log_param("top_n", settings.TOP_N)
+        mlflow.log_param("embedder", "BAAI/bge-m3")
+        mlflow.log_param("reranker", "jinaai/jina-reranker-v3")
+        mlflow.log_param("judge_model", "openai:/gpt-4o-mini-2024-07-18")
+        mlflow.log_param("eval_size_actual", len(eval_df))
 
-    print(f"Git SHA   : {git_sha}")
-    print(f"Git Branch: {git_branch}")
+        mlflow.set_tag("eval_dataset_sha256", metadata["dataset_sha256"])
+        mlflow.set_tag("eval_dataset_version", metadata["version"])
+        mlflow.set_tag("eval_dataset_full_size", str(metadata["n_samples"]))
 
+        mlflow.log_artifact(str(parquet_path), artifact_path="eval_dataset")
 
-if __name__ == "__main__":
-    runs = asyncio.run(RagEvalMLflow()._check_evaluation_run_exists())
-    print(f"runs: {runs}")
+        # ── eval: project to only the columns predict_fn needs ──
+        results = mlflow.genai.evaluate(
+            data=eval_df[["question"]],
+            predict_fn=self.predict_fn,
+            scorers=[RetrievalRelevance(), RetrievalSufficiency()],
+        )
+        return results
+    
+    @mlflow.trace(span_type="CHAIN")
+    def predict_fn(self, question: str) -> dict:
+        """Called by mlflow.genai.evaluate per eval row.
 
+        Tier 1: retrieval-only. Response is empty (no generator yet).
+        The RETRIEVER + RERANKER spans come from the decorators on RagPipeline,
+        which is what the RAG judges read to score retrieval quality.
+        """
+
+        re_ranked = self._rag_pipeline.retrieve_and_rerank(query=question)
+
+        retrieved_context= [
+                            {
+                                "content": d.response,
+                                "doc_uri": f"qdrant://{settings.COLLECTION_NAME}",
+                            }
+                            for d in re_ranked
+                        ]
+
+        return {
+                "response": "",
+                "retrieved_context": retrieved_context
+            }
