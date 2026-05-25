@@ -63,6 +63,17 @@ class Settings(BaseSettings):
 
     QDRANT_API_KEY: str
 
+    MLFLOW_TRACKING_URI: str
+    EXPERIMENT_NAME: str
+
+    COLLECTION_NAME: str
+    TOTAL_ROWS: int
+    EVAL_SIZE: int      # held out — never in Qdrant
+    RAGAS_SAMPLES: int       # costly LLM eval subset
+    TOP_K: int       # retrieve from Qdrant
+    TOP_N: int        # keep after reranking → sent to LLM
+    RANDOM_STATE: int
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -29,13 +29,7 @@ from app.configs.logger import get_logger
 logger = get_logger()
 
 DATA_PATH=r"D:\etl\SERA-AI\app\blueprints\data\medical_o1_sft.json"
-COLLECTION_NAME = "medical_o1_sft"
-TOTAL_ROWS      = 19_704
-EVAL_SIZE       = 300      # held out — never in Qdrant
-RAGAS_SAMPLES   = 50       # costly LLM eval subset
-TOP_K           = 20       # retrieve from Qdrant
-TOP_N           = 5        # keep after reranking → sent to LLM
-RANDOM_STATE    = 42
+
 
 class RetrievedDoc(BaseModel):
     question:     str
@@ -121,17 +115,17 @@ class RagPipeline:
         train_df: pd.DataFrame, 
         batch_size: int
     ):
-        if not self.client.collection_exists(collection_name=COLLECTION_NAME):
+        if not self.client.collection_exists(collection_name=settings.COLLECTION_NAME):
             self.client.create_collection(
-                collection_name=COLLECTION_NAME,
+                collection_name=settings.COLLECTION_NAME,
                 vectors_config=models.VectorParams(
                     size=1024,
                     distance=models.Distance.COSINE
                 )
             )
-            logger.info(f"Collection '{COLLECTION_NAME}' created.")
+            logger.info(f"Collection '{settings.COLLECTION_NAME}' created.")
         else:
-            logger.info(f"Collection '{COLLECTION_NAME}' exists — skipping insert.")
+            logger.info(f"Collection '{settings.COLLECTION_NAME}' exists — skipping insert.")
             return
         
         total_batches = (len(train_df) + batch_size - 1) // batch_size
@@ -158,7 +152,7 @@ class RagPipeline:
                     for i, (_, row) in enumerate(batch.iterrows())
                 ]
 
-                self.client.upsert(collection_name=COLLECTION_NAME, points=points)
+                self.client.upsert(collection_name=settings.COLLECTION_NAME, points=points)
                 inserted += len(batch)
             except Exception as e:
                 failed += len(batch)
@@ -166,6 +160,7 @@ class RagPipeline:
 
         logger.info(f"✅ Inserted: {inserted} | failed: {failed}")
     
+    @mlflow.trace(span_type="RETRIEVER")
     def retrieve(self, query: str) -> List[RetrievedDoc]:
         try:
             query_vector =  self.embedding.encode(
@@ -177,9 +172,9 @@ class RagPipeline:
                 return []
 
             results = self.client.query_points(
-                collection_name=COLLECTION_NAME,
+                collection_name=settings.COLLECTION_NAME,
                 query=query_vector,
-                limit=TOP_K,
+                limit=settings.TOP_K,
                 with_payload=True,
             ).points
 
@@ -203,7 +198,7 @@ class RagPipeline:
             logger.error(f"Retrieval failed: {e}")
             return []
 
-
+    @mlflow.trace(span_type="RERANKER")
     def re_rank(self, query: str, docs: list[RetrievedDoc]) -> list[RetrievedDoc]:
         if not docs:
             return []
@@ -212,7 +207,7 @@ class RagPipeline:
             results = self.ranker.rerank(
                 query=query,
                 documents=[doc.response for doc in docs],
-                top_n=TOP_N,
+                top_n=settings.TOP_N,
                 max_query_length=512,
                 max_doc_length=1024,
             )
@@ -232,7 +227,7 @@ class RagPipeline:
 
         except (RuntimeError, torch.cuda.OutOfMemoryError) as e:
             logger.error(f"Reranker failed (runtime): {e}")
-            return sorted(docs, key=lambda d: d.vector_score, reverse=True)[:TOP_N]
+            return sorted(docs, key=lambda d: d.vector_score, reverse=True)[:settings.TOP_N]
     
     def retrieve_and_rerank(self, query: str) -> list[RetrievedDoc]:
         docs     = self.retrieve(query)
@@ -244,10 +239,10 @@ if __name__ == "__main__":
 
 
     is_exists_collection = pipeline.client.collection_exists(
-        collection_name=COLLECTION_NAME
+        collection_name=settings.COLLECTION_NAME
     )
 
-    print(f" ✅ collection name: {COLLECTION_NAME} : ({is_exists_collection})")
+    print(f" ✅ collection name: {settings.COLLECTION_NAME} : ({is_exists_collection})")
 
     train_df, eval_df = pipeline.training_and_testing()
     first_question = eval_df["Question"][0]

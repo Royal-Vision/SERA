@@ -795,3 +795,11 @@ Output:
 2026-05-23 16:26:24 | INFO | dataset.py:61 | Collection 'evaluation_medical_o1_sft' exists — skipping insert.
 2026-05-23 16:26:24 | INFO | dataset.py:240 | Loaded eval dataset: eval_gold_v1.parquet (n=300, sha256=92fd993efd4c)
 2026-05-23 16:26:24 | INFO | dataset.py:269 | ✅ gold doc retrieved by id: [Record(id='00cbdd34-d2b6-5413-97b6-3f41cc2a5725', payload={'question': 'The foetal circulation is first intact and functional, separated from maternal circulation at the age of:\nA. 8 days\nB. 12 days\nC. 17 days\nD. 21 days', 'response': "The fetal circulation is first intact and functional, separated from the maternal circulation, at about 21 days after fertilization. By this time, the heart has started to beat and the circulatory system has begun to operate independently of the mother's system, although the placenta remains a crucial mediator for nutrient and gas exchange. Thus, the answer is D. 21 days."}, vector=None, shard_key=None, order_value=None)]
+2026-05-25 09:38:44 | INFO | mlflow_tracker.py:29 | MLflow initialized -> https://mlflow.ghoniem.online | sera-ai
+2026-05-25 09:38:44 | INFO | mlflow_eval.py:39 | RagEvalMLflow ready | sha=<coroutine object RagEvalMLflow._get_git_sha at 0x000001E0EC7A5E40> | branch=<coroutine object RagEvalMLflow._get_git_branch at 0x000001E0EDEA7560>
+2026-05-25 09:43:23 | INFO | mlflow_tracker.py:29 | MLflow initialized -> https://mlflow.ghoniem.online | sera-ai
+2026-05-25 09:43:23 | INFO | mlflow_eval.py:39 | RagEvalMLflow ready | sha=<coroutine object RagEvalMLflow._get_git_sha at 0x0000019BF3296140> | branch=<coroutine object RagEvalMLflow._get_git_branch at 0x0000019BF499B9A0>
+2026-05-25 11:30:21 | INFO | mlflow_tracker.py:29 | MLflow initialized -> https://mlflow.ghoniem.online | sera-ai
+2026-05-25 11:31:04 | INFO | mlflow_tracker.py:29 | MLflow initialized -> https://mlflow.ghoniem.online | sera-ai
+2026-05-25 11:31:54 | INFO | mlflow_tracker.py:29 | MLflow initialized -> https://mlflow.ghoniem.online | sera-ai
+2026-05-25 11:31:55 | INFO | mlflow_eval.py:84 | ✅ experiment id : 6
