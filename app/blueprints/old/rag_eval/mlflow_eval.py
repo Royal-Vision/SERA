@@ -3,6 +3,7 @@ import subprocess
 from contextlib import contextmanager
 
 import mlflow
+from mlflow.genai.scorers import RetrievalRelevance, RetrievalSufficiency
 from mlflow.tracking import MlflowClient
 
 from app.blueprints.old.utilities.mlflow_tracker import tracker  # noqa: F401
@@ -161,8 +162,8 @@ class RagEvalMLflow:
             data=eval_df[["question"]],
             predict_fn=self.predict_fn,
             scorers=[
-                mlflow.genai.scorers.RetrievalRelevance(),
-                mlflow.genai.scorers.RetrievalSufficiency(),
+                RetrievalRelevance(),
+                RetrievalSufficiency(),
             ],
         )
 
