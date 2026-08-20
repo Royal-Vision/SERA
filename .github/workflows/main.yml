@@ -1,0 +1,122 @@
+name: Deploy SERA AI
+
+on:
+  push:
+    branches: ["prod"]
+
+jobs:
+  deploy:
+    runs-on: royal
+    environment: prod
+
+    steps:
+      # =========================
+      # 📥 Checkout Code
+      # =========================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # =========================
+      # 🧾 Create .env file safely
+      #     write_env only writes lines where the value is non-empty,
+      #     so optional secrets you haven't set won't pollute .env.
+      # =========================
+      - name: Create .env file
+        run: |
+          rm -f .env
+
+          write_env() {
+            local key="$1"
+            local val="$2"
+            if [ -n "$val" ]; then
+              echo "${key}=${val}" >> .env
+            fi
+          }
+
+          # =========================
+          # PostgreSQL
+          # =========================
+          write_env "POSTGRES_USER"             "${{ secrets.POSTGRES_USER }}"
+          write_env "POSTGRES_PASSWORD"         "${{ secrets.POSTGRES_PASSWORD }}"
+          write_env "POSTGRES_DB"               "${{ secrets.POSTGRES_DB }}"
+          write_env "POSTGRES_HOST"             "${{ secrets.POSTGRES_HOST }}"
+
+          # =========================
+          # Redis
+          # =========================
+          write_env "REDIS_PASSWORD"            "${{ secrets.REDIS_PASSWORD }}"
+
+          # =========================
+          # FastAPI App
+          # =========================
+          echo "APP_ENV=production" >> .env
+          echo "DEBUG=false" >> .env
+          write_env "SECRET_KEY"                "${{ secrets.SECRET_KEY }}"
+
+          # =========================
+          # JWT
+          # =========================
+          write_env "JWT_SECRET_KEY"            "${{ secrets.JWT_SECRET_KEY }}"
+          echo "JWT_ALGORITHM=HS256" >> .env
+          echo "JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440" >> .env
+
+          # =========================
+          # CORS
+          # =========================
+          write_env "ALLOWED_ORIGINS"           "${{ secrets.ALLOWED_ORIGINS }}"
+
+          # =========================
+          # OpenAI / AI Providers
+          # =========================
+          write_env "OPENAI_API_KEY"            "${{ secrets.OPENAI_API_KEY }}"
+          write_env "ANTHROPIC_API_KEY"         "${{ secrets.ANTHROPIC_API_KEY }}"
+          write_env "GOOGLE_API_KEY"            "${{ secrets.GOOGLE_API_KEY }}"
+
+          # =========================
+          # Email (optional)
+          # =========================
+          write_env "SMTP_HOST"                 "${{ secrets.SMTP_HOST }}"
+          write_env "SMTP_PORT"                 "${{ secrets.SMTP_PORT }}"
+          write_env "SMTP_USER"                 "${{ secrets.SMTP_USER }}"
+          write_env "SMTP_PASSWORD"             "${{ secrets.SMTP_PASSWORD }}"
+          write_env "SMTP_FROM"                 "${{ secrets.SMTP_FROM }}"
+
+          # =========================
+          # Storage (MinIO / S3)
+          # =========================
+          write_env "MINIO_S3_ENDPOINT_URL"     "${{ secrets.MINIO_S3_ENDPOINT_URL }}"
+          write_env "MINIO_PUBLIC_URL"          "${{ secrets.MINIO_PUBLIC_URL }}"
+          write_env "MINIO_ACCESS_KEY_ID"       "${{ secrets.MINIO_ACCESS_KEY_ID }}"
+          write_env "MINIO_SECRET_ACCESS_KEY"   "${{ secrets.MINIO_SECRET_ACCESS_KEY }}"
+          write_env "MINIO_BUCKET"              "${{ secrets.MINIO_BUCKET }}"
+
+          # =========================
+          # Qdrant
+          # =========================
+          write_env "QDRANT_API_KEY"            "${{ secrets.QDRANT_API_KEY }}"
+
+          # =========================
+          # MLflow
+          # =========================
+          write_env "MLFLOW_TRACKING_URI"       "${{ secrets.MLFLOW_TRACKING_URI }}"
+          write_env "EXPERIMENT_NAME"           "${{ secrets.EXPERIMENT_NAME }}"
+
+      # =========================
+      # 🐳 Build & Deploy with Docker Compose
+      # =========================
+      - name: Build and Deploy Containers
+        run: |
+          docker compose up --build -d --remove-orphans
+
+      # =========================
+      # 🧹 Cleanup dangling images (preserves layer cache)
+      # =========================
+      - name: Cleanup dangling images
+        run: docker image prune -f
+
+      # =========================
+      # 🔐 Always remove .env from disk
+      # =========================
+      - name: Remove .env file
+        if: always()
+        run: rm -f .env

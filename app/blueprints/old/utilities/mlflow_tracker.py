@@ -1,11 +1,28 @@
+import os
+
 import mlflow
 
+from app.configs.config import settings
 from app.configs.logger import get_logger
 
 logger = get_logger()
 
 MLFLOW_TRACKING_URI = "https://mlflow.ghoniem.online"
 EXPERIMENT_NAME = "sera-ai"
+
+
+def _export_s3_credentials_for_mlflow() -> None:
+    """Bridge `settings.S3_*` to the env var names boto3 expects.
+
+    MLflow's artifact backend uses standard AWS env vars internally; setting
+    them here means we don't have to duplicate values into AWS_* in .env.
+    """
+    if settings.S3_ACCESS_KEY and not os.getenv("AWS_ACCESS_KEY_ID"):
+        os.environ["AWS_ACCESS_KEY_ID"] = settings.S3_ACCESS_KEY
+    if settings.S3_SECRET_KEY and not os.getenv("AWS_SECRET_ACCESS_KEY"):
+        os.environ["AWS_SECRET_ACCESS_KEY"] = settings.S3_SECRET_KEY
+    if settings.S3_ENDPOINT and not os.getenv("MLFLOW_S3_ENDPOINT_URL"):
+        os.environ["MLFLOW_S3_ENDPOINT_URL"] = settings.S3_ENDPOINT
 
 
 class MLflowTracker:
@@ -20,6 +37,8 @@ class MLflowTracker:
     def __init__(self):
         if self._initialized:
             return
+
+        _export_s3_credentials_for_mlflow()
 
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         mlflow.set_experiment(EXPERIMENT_NAME)

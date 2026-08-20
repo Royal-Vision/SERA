@@ -17,7 +17,7 @@ COLLECTION_NAME = "medical_o1_sft"
 embedder = BGEM3FlagModel("BAAI/bge-m3", use_fp16=True)
 client   = QdrantClient(
     url="http://localhost:6338",
-    api_key=os.getenv("QDRANT_API_KEY"),
+    # api_key=os.getenv("QDRANT_API_KEY"),
 )
 
 # ─────────────────────────────────────────────
