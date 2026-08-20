@@ -10,7 +10,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda
 
-from app.blueprints.prompts.rewriter_prompt import RewriterStructure
+from app.blueprints.old.prompts.rewriter_prompt import RewriterStructure
 from app.configs.logger import get_logger
 
 logger = get_logger()

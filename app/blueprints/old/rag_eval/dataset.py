@@ -9,7 +9,7 @@ from qdrant_client import models
 from tqdm import tqdm
 
 from app.configs.logger import get_logger
-from app.blueprints.vector_store.rag_pipeline import RagPipeline
+from app.blueprints.old.vector_store.rag_pipeline import RagPipeline
 logger = get_logger()
 
 

@@ -6,13 +6,13 @@
     )
 """
 
-from app.blueprints.utilities.metrics import (
+from app.blueprints.old.utilities.metrics import (
     MODEL_COST_PER_1M,
     LLMMetrics,
     get_metrics,
     start_metrics_server,
 )
-from app.blueprints.utilities.mlflow_tracker import (
+from app.blueprints.old.utilities.mlflow_tracker import (
     EXPERIMENT_NAME,
     MLFLOW_TRACKING_URI,
     MLflowTracker,

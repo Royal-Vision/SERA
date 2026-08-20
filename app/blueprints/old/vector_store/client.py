@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient, models
 from FlagEmbedding import BGEM3FlagModel
 
-from app.blueprints.vector_store.retrive import retrieve
+from app.blueprints.old.vector_store.retrive import retrieve
 from app.configs.logger import get_logger
 
 load_dotenv()

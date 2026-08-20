@@ -41,6 +41,9 @@ dependencies = [
     "langchain-huggingface>=1.2.2",
     "flagembedding>=1.4.0",
     "ragas>=0.4.3",
+    "dspy>=3.3.0",
+    "langchain-xai>=1.2.2",
+    "langchain-ollama>=1.1.0",
 ]
 
 [[tool.uv.index]]

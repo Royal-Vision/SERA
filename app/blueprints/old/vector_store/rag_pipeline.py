@@ -59,7 +59,7 @@ class RagPipeline:
         logger.info("Loading models (runs once)...")
         self.embedding = BGEM3FlagModel("BAAI/bge-m3", use_fp16=True)
         self.ranker = AutoModel.from_pretrained(
-            "jinaai/jina-reranker-v3",
+            "y-v3",
             dtype="auto",
             trust_remote_code=True,
         )
