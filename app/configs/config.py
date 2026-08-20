@@ -9,25 +9,25 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = Field(default="production")
     DEBUG: bool = Field(default=False)
-    SECRET_KEY: str
+    # SECRET_KEY: str
     METRICS_ENABLED: bool = Field(default=True)
     METRICS_HTTP_SERVER_ENABLED: bool = Field(default=False)
     METRICS_PORT: int = Field(default=8000)
 
     # PostgreSQL
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
+    # POSTGRES_USER: str
+    # POSTGRES_PASSWORD: str
+    # POSTGRES_DB: str
 
     DATABASE_URL: Optional[str] = None
     ALEMBIC_DATABASE_URL: Optional[str] = None
 
     # Redis
-    REDIS_PASSWORD: str
+    # REDIS_PASSWORD: str
     REDIS_URL: Optional[str] = None
 
     # JWT
-    JWT_SECRET_KEY: str
+    # JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     S3_BUCKET: Optional[str] = None
     S3_SECURE: bool = True
 
-    QDRANT_API_KEY: str
+    # QDRANT_API_KEY: str
 
     MLFLOW_TRACKING_URI: str = Field(default="https://mlflow.ghoniem.online")
     EXPERIMENT_NAME: str = Field(default="sera-ai")

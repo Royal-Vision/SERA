@@ -61,7 +61,7 @@ class RagPipeline:
 
         self.client = QdrantClient(
             url=os.getenv("QDRANT_URL", "http://localhost:6338"),
-            api_key=settings.QDRANT_API_KEY
+            # api_key=settings.QDRANT_API_KEY
         )
 
         self._initialized = True
