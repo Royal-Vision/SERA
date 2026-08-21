@@ -45,6 +45,7 @@ dependencies = [
     "dspy>=3.3.0",
     "langchain-xai>=1.2.2",
     "langchain-ollama>=1.1.0",
+    "winloop>=0.6.3",
 ]
 
 [[tool.uv.index]]
