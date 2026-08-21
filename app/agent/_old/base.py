@@ -33,7 +33,6 @@ from app.agent.contracts import (
 
 InputT = TypeVar("InputT", bound=BaseModel)
 
-
 class Tool(ABC, Generic[InputT]):
     """Base class for every tool.
 
@@ -252,13 +251,13 @@ class ToolRegistry:
 
 def build_default_registry() -> ToolRegistry:
     """The standard tool set.
-
     Imported lazily by callers so `sera --help` never pays for it.
     """
-    from app.agent.tools.edit import EditFileTool
-    from app.agent.tools.glob import GlobTool
-    from app.agent.tools.grep import GrepTool
-    from app.agent.tools.read import ReadFileTool
+
+    from app.agent.tools.edit  import EditFileTool
+    from app.agent.tools.glob  import GlobTool
+    from app.agent.tools.grep  import GrepTool
+    from app.agent.tools.read  import ReadFileTool
     from app.agent.tools.write import WriteFileTool
 
     return ToolRegistry(

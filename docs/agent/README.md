@@ -14,6 +14,10 @@ the only thing they should feel is *their own LLM*. Everything SERA adds is invi
 
 ---
 
+> **Lost, or starting the code?** Read **[BUILD-ORDER.md](BUILD-ORDER.md)** first. It
+> sequences these phases into concrete files with a gate per step, and answers the
+> Casbin question.
+
 ## How to read this
 
 Each phase is one file, and each file answers four questions in order:

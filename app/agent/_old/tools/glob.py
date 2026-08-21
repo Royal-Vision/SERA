@@ -8,11 +8,13 @@ survives truncation.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from pathlib import Path
 
 import anyio
+import orjson
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agent.base import Tool
@@ -144,3 +146,4 @@ def _walk_and_match(root: Path, pattern: str, limit: int) -> list[Path]:
 
     results.sort(key=lambda t: t[0], reverse=True)
     return [p for _, p in results[:limit]]
+
