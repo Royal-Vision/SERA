@@ -17,11 +17,12 @@ import logging
 import logging.handlers
 import queue
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, AsyncIterator, Final
+from typing import Any, Final
 
 # NOTE ->> orjson is a declared dependency, but the fallback keeps this file importable
 # NOTE ->> in a bare interpreter -- same pattern as _old/perf.py. ~77% faster than json.
@@ -89,7 +90,7 @@ class ContextFilter(logging.Filter):
 @asynccontextmanager
 async def bind(
     *, session: str | None = None, request: str | None = None
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None]:
     """Scope the ids for one turn. Wrap the turn, not individual log calls.
 
         async with bind(session=ctx.session_id, request=ctx.request_id):

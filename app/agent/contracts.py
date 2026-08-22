@@ -1,371 +1,557 @@
-"""Core agent contracts. The bottom of the stack -- everything imports from here."""
+"""Core agent contracts -- Tool Contract SRS §01. The bottom of the stack.
 
-# NOTE ->> Import discipline starts here: stdlib + pydantic ONLY. No langchain/langgraph/torch.
-# NOTE ->> No `from __future__ import annotations` -- 3.14 defers annotations by default (PEP 649).
-# NOTE ->> You will need: time, dataclass/field, StrEnum, Path, Any/Callable/TYPE_CHECKING.
+A tool is not an async function. It is a VERSIONED CAPABILITY with schemas, risk
+metadata, permission behaviour, concurrency rules, cancellation, progress, output
+limits and audit evidence. Everything in this file exists so the executor can
+decide all of that WITHOUT calling the tool.
+"""
+
+# NOTE ->> Import discipline: stdlib + pydantic ONLY. No langchain/langgraph/torch.
+# NOTE ->> No `from __future__ import annotations` -- 3.14 defers annotations by default
+# NOTE ->> (PEP 649). The SRS reference snippet has that import; it is a pre-3.14 artefact.
+
+import hashlib
+import json
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+
+NAME_PATTERN = r"[A-Za-z][A-Za-z0-9_.-]{0,127}"
+"""TOOL-001. Canonical names are an API surface, so they get a grammar, not a habit."""
 
 
 # ==============================================================================
-# 1 · Results
+# 1 · Enums   (StrEnum -- logged and serialised as-is)
 # ==============================================================================
 
-# NOTE ->> ToolResult: @dataclass(slots=True). Fields: content, is_error, metadata, truncated.
-# NOTE ->> Keep `content` terse -- it is re-sent to the model on EVERY later turn of the loop.
-# NOTE ->> `truncated` = how much you cut. The model must know when its view is partial.
-# NOTE ->> Add classmethods .ok(content, **meta) and .error(message, **meta) to keep call sites short.
-@dataclass(slots=True)
-class ToolResult:
-    """What the model sees after a tool finishes.
+class SideEffect(StrEnum):
+    """WHAT the tool changes. Policy keys on this, not on a read_only bool.
 
-    Every terminal state of a tool becomes one of these -- success, failure,
-    timeout, refusal. Nothing escapes as an exception.
+    A web GET is read-only and still crosses a network boundary; a message to
+    another agent mutates no file and can still trigger external behaviour. One
+    boolean cannot separate those, so it does not try.
     """
 
-    content: str
-    """What goes into the conversation. Keep it terse: in an agent loop every
-    token of tool output is re-sent on every later turn, so a verbose result is
-    a compounding cost, not a one-off one."""
+    NONE = "none"
+    """Pure observation inside the workspace. The only class PLAN mode offers."""
 
-    is_error: bool = False
-    """True marks the ToolMessage as an error so the model treats it as feedback."""
+    LOCAL_STATE = "local_state"
+    """Session-scoped state -- todo list, mode. Dies with the session."""
 
-    metadata: dict[str, Any] = field(default_factory=dict)
-    """Out-of-band facts for the engine and logs -- never shown to the model.
-    Must be default_factory: a bare {} would be shared by every instance."""
+    WORKSPACE_WRITE = "workspace_write"
+    """Creates or modifies files under the workspace root."""
 
-    truncated: int = 0
-    """How much was cut. An int, not a bool -- the model needs to know how much
-    it is missing to decide whether to ask for the rest."""
+    PROCESS = "process"
+    """Spawns a process. Unbounded by construction -- see bash."""
 
-    @classmethod
-    def ok(cls, content: str, **meta: Any) -> "ToolResult":
-        return cls(content=content, metadata=meta)
+    NETWORK_READ = "network_read"
+    """Leaves the machine to read. The channel prompt injection needs to exfiltrate."""
 
-    @classmethod
-    def error(cls, message: str, **meta: Any) -> "ToolResult":
-        return cls(content=message, is_error=True, metadata=meta)
+    EXTERNAL_WRITE = "external_write"
+    """Changes state somebody else owns. Not revertible by us at any price."""
 
-# ==============================================================================
-# 2 · Enums   (all StrEnum -- these get logged and serialised as-is)
-# ==============================================================================
-
-# NOTE ->> PermissionMode: DEFAULT, ACCEPT_EDITS, PLAN, BYPASS. Session-wide posture.
-class PermissionMode(StrEnum):
-    """Session-wide posture: how much the agent may do without asking.
-
-    Chosen once per session by the USER, never by the agent. The policy in
-    base.py reads it on every single tool call.
-    """
-
-    DEFAULT = "DEFAULT"
-    """Read-only tools auto-allowed; every mutation prompts.
-
-    Use for: normal interactive work. This is the only mode that may ever be
-    assumed -- the other three must each be asked for deliberately.
-    """
-
-    ACCEPT_EDITS = "ACCEPT_EDITS"
-    """File edits auto-allowed; bash and anything HIGH risk still prompts.
-
-    Use for: a long refactor across many files, where approving each edit is
-    pure friction because you already agreed the agent may rewrite the project.
-    The HIGH-risk carve-out is what keeps this from becoming BYPASS by accident.
-    """
-
-    PLAN = "PLAN"
-    """Nothing may mutate. Read-only tools only -- research and propose.
-
-    Use for: "show me what you would do before you touch anything."
-    Two properties make this a wall rather than a preference: mutating tools are
-    not merely denied but NOT OFFERED (so the model never wastes a turn trying
-    one), and it is checked BEFORE allow-lists, so no approval granted earlier
-    in the session can override it.
-    """
-
-    BYPASS = "BYPASS"
-    """Everything auto-allowed -- except always_deny, which still wins.
-
-    Use for: CI and non-interactive runs, where there is nobody to answer a
-    prompt and ASK would just hang. Never infer it from the absence of a
-    terminal -- a missing TTY means deny, not bypass. That the deny-list still
-    applies here is exactly what makes this mode safe enough to exist.
-    """
+    DESTRUCTIVE = "destructive"
+    """Irreversible local loss -- delete, force-push, worktree removal."""
 
 
-# NOTE ->> RiskLevel: SAFE, LOW, MEDIUM, HIGH. How much damage the tool can do.
 class RiskLevel(StrEnum):
-    """How much damage a tool can do. Drives the permission decision."""
+    """HOW MUCH damage, given the side effect. Four levels, per the SRS."""
 
-    SAFE = "SAFE"
-    """read_file, glob, grep -- read-only and confined to the project."""
+    LOW = "low"
+    """Trivially reverted -- a new file, a session toggle."""
 
-    LOW = "LOW"
-    """write_file to a NEW path -- trivially reverted, nothing was lost."""
+    MEDIUM = "medium"
+    """Modifies state that already mattered -- an edit to a tracked file."""
 
-    MEDIUM = "MEDIUM"
-    """edit_file on an existing tracked file -- changes state that already mattered."""
+    HIGH = "high"
+    """Irreversible, or escapes the workspace."""
 
-    HIGH = "HIGH"
-    """bash, delete, network -- irreversible, or escapes the project.
-    The one level ACCEPT_EDITS refuses to auto-approve."""
+    CRITICAL = "critical"
+    """Credential access, CI/hook/settings writes, anything supply-chain shaped."""
 
 
-# NOTE ->> Decision: ALLOW, DENY, ASK. Three outcomes -- this is exactly why a bool is not enough.
+class ConcurrencyClass(StrEnum):
+    """Scheduler behaviour. Combined with resource_keys -- class alone is too coarse."""
+
+    PARALLEL = "parallel"
+    READ_PARALLEL = "read_parallel"
+    """Overlaps with reads of the same resource, never with a write to it."""
+    SERIAL_SESSION = "serial_session"
+    SERIAL_WORKSPACE = "serial_workspace"
+    EXCLUSIVE_RUNTIME = "exclusive_runtime"
+    """No other call in the daemon may overlap. Use rarely -- it stalls every session."""
+
+
+class Idempotency(StrEnum):
+    """What a retry after an ambiguous crash is allowed to do."""
+
+    PURE = "pure"
+    """Safe to recompute. The ONLY class whose result may be cached."""
+    IDEMPOTENT = "idempotent"
+    """Repeating lands the same external state; reuse the terminal receipt."""
+    DEDUPLICATED = "deduplicated"
+    """Must pass a stable idempotency key to the downstream system."""
+    NON_IDEMPOTENT = "non_idempotent"
+    """Crash recovery STOPS for reconciliation. It never auto-retries."""
+
+
+class InterruptBehavior(StrEnum):
+    CANCEL = "cancel"
+    FINISH = "finish"
+    """Let it complete -- cancelling mid-write is worse than finishing."""
+    NON_INTERRUPTIBLE = "non_interruptible"
+
+
 class Decision(StrEnum):
-    """The three outcomes of a permission check -- which is why it cannot be a bool."""
+    """Three outcomes -- which is exactly why a bool is not enough."""
 
-    ALLOW = "ALLOW"
-    """Run it now, no prompt."""
+    ALLOW = "allow"
+    DENY = "deny"
+    """Returns a tool result, not an exception: the model must SEE the refusal."""
+    ASK = "ask"
+    """Suspends. The policy never prompts itself -- the caller decides how."""
 
-    DENY = "DENY"
-    """Never run. Returns a ToolMessage, not an exception: the model must SEE the
-    refusal and adapt. Killing the turn would lose all in-flight work."""
 
-    ASK = "ASK"
-    """Suspend and ask the user. The policy never prompts itself -- the caller
-    turns this into a terminal prompt, a graph interrupt, or an automatic deny."""
+class ResultStatus(StrEnum):
+    """Every terminal state. TOOL-009 requires exactly one of these per attempt."""
 
-# NOTE ->> ToolCategory: FILESYSTEM, SEARCH, EXECUTION, TASK, WEB, UTILITY.
+    SUCCEEDED = "succeeded"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+    """The batch condition failed before this call ran -- it never started."""
+
+
+class PermissionMode(StrEnum):
+    """Session-wide posture. Chosen by the USER, never by the agent."""
+
+    DEFAULT = "default"
+    ACCEPT_EDITS = "accept_edits"
+    PLAN = "plan"
+    """Nothing may mutate. Mutating tools are NOT OFFERED, and it is checked before
+    allow-lists, so no earlier approval can override it."""
+    BYPASS = "bypass"
+    """Everything auto-allowed EXCEPT always_deny. Never infer it from a missing TTY."""
+
+
 class ToolCategory(StrEnum):
-    """What kind of work a tool does. Grouping for docs, metrics and tool listings."""
+    FILESYSTEM = "filesystem"
+    SEARCH = "search"
+    SHELL = "shell"
+    WEB = "web"
+    AGENT = "agent"
+    TASK = "task"
+    INTERACTION = "interaction"
+    IDE = "ide"
+    MCP = "mcp"
+    SETTINGS = "settings"
+    AUTOMATION = "automation"
+    INTERNAL = "internal"
 
-    FILESYSTEM = "FILESYSTEM"
-    """read_file, write_file, edit_file -- touch files inside the project root."""
 
-    SEARCH = "SEARCH"
-    """glob, grep -- find things without reading everything.
-    The cheapest lever on how many turns a task takes."""
+class ErrorCode(StrEnum):
+    """The taxonomy IS retry guidance -- the model reads the code and decides."""
 
-    EXECUTION = "EXECUTION"
-    """bash. The only category that cannot be made safe by structure, so it is
-    the one that genuinely needs a permission decision."""
+    NOT_FOUND = "tool.not_found"
+    SCHEMA_INVALID = "tool.schema_invalid"
+    SEMANTIC_INVALID = "tool.semantic_invalid"
+    PERMISSION_DENIED = "tool.permission_denied"
+    PERMISSION_EXPIRED = "tool.permission_expired"
+    """Approved arguments changed, or the lease expired. Ask again -- never assume."""
+    CANCELLED = "tool.cancelled"
+    TIMEOUT = "tool.timeout"
+    CONFLICT = "tool.conflict"
+    DEPENDENCY_UNAVAILABLE = "tool.dependency_unavailable"
+    OUTPUT_INVALID = "tool.output_invalid"
+    """The implementation violated its own output schema. A runtime defect --
+    do NOT hand it to the model to repair."""
+    INTERNAL = "tool.internal"
 
-    TASK = "TASK"
-    """Spawn a subagent that works in its own context window. Phase 13, deferred."""
 
-    WEB = "WEB"
-    """web_fetch, web_search. None shipped by default -- no network tool means
-    prompt injection has no channel to exfiltrate anything through."""
+_RETRYABLE = frozenset({
+    ErrorCode.SCHEMA_INVALID, ErrorCode.SEMANTIC_INVALID,
+    ErrorCode.CONFLICT, ErrorCode.DEPENDENCY_UNAVAILABLE,
+})
 
-    UTILITY = "UTILITY"
-    """Everything else -- todo list, formatting, diagnostics."""
 
 # ==============================================================================
-# 3 · Permission data   (data only -- PermissionPolicy lives in base.py, Step 2)
+# 2 · Errors, artifacts, progress
 # ==============================================================================
 
-# NOTE ->> `rule` names WHICH branch decided, so an audit log / --explain can justify itself.
-@dataclass(slots=True)  # slots: no per-instance __dict__ -- smaller, and typos raise instead of sticking
+class ToolError(BaseModel):
+    """An error is DATA. No implementation exception crosses into the model loop."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: ErrorCode
+    message: str
+    """Written for the model to act on: what was wrong, what to send instead."""
+    retryable: bool = False
+    details: dict[str, Any] | None = None
+
+    @classmethod
+    def of(cls, code: ErrorCode, message: str, **details: Any) -> "ToolError":
+        return cls(code=code, message=message,
+                   retryable=code in _RETRYABLE, details=details or None)
+
+
+class ArtifactRef(BaseModel):
+    """A pointer to bytes that must not enter the context window.
+
+    TOOL-010. A path in model content is NOT an authorization token -- reading the
+    artifact still goes through authenticated REST.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    artifact_id: str
+    media_type: str
+    size_bytes: int
+    sha256: str
+    preview: str | None = None
+    """Head/tail excerpt, so the model can decide whether it wants the whole thing."""
+
+
+class ToolProgress(BaseModel):
+    """Advisory and DROPPABLE (TOOL-014). Never the carrier of a terminal fact."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str
+    call_id: str
+    sequence: int
+    """Monotonic per call -- consumers coalesce and drop, so they need ordering."""
+    message: str | None = None
+    completed_units: int | None = None
+    total_units: int | None = None
+    preview: str | None = None
+
+
+# ==============================================================================
+# 3 · ToolResult
+# ==============================================================================
+
+OutputT = TypeVar("OutputT")
+
+
+class ToolResult(BaseModel, Generic[OutputT]):
+    """One settled outcome, in two representations.
+
+    `output` is the typed structure for the database, the SDK and tests.
+    `model_content` is what the next model request carries -- compact and bounded,
+    because in an agent loop it is re-sent on EVERY later turn.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: ResultStatus
+    model_content: str
+    output: OutputT | None = None
+    artifacts: list[ArtifactRef] = Field(default_factory=list)
+    error: ToolError | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Out-of-band facts for the engine and logs -- never shown to the model."""
+    truncated: int = 0
+    """How much was cut. An int, not a bool: the model needs to know HOW much it is
+    missing to decide whether to ask for the rest."""
+
+    @classmethod
+    def ok(cls, model_content: str, output: OutputT | None = None,
+           **metadata: Any) -> "ToolResult[OutputT]":
+        return cls(status=ResultStatus.SUCCEEDED, model_content=model_content,
+                   output=output, metadata=metadata)
+
+    @classmethod
+    def failure(cls, error: ToolError, *, status: ResultStatus = ResultStatus.FAILED,
+                **metadata: Any) -> "ToolResult[OutputT]":
+        return cls(status=status, model_content=error.message,
+                   error=error, metadata=metadata)
+
+    @property
+    def is_error(self) -> bool:
+        return self.status is not ResultStatus.SUCCEEDED
+
+
+# ==============================================================================
+# 4 · Timeout policy
+# ==============================================================================
+
+@dataclass(frozen=True, slots=True)
+class TimeoutPolicy:
+    """Three deadlines, because a tool can fail to finish in three different ways."""
+
+    default_s: float
+    max_s: float
+    idle_s: float | None = None
+    """No output for this long -- for shell and streaming. A process that produces
+    nothing for 60 s is hung, even when the wall clock still has room."""
+    model_may_lower: bool = True
+    """The model may ask for LESS. It may never ask for more -- that is the point
+    of a maximum."""
+
+    def __post_init__(self) -> None:
+        if self.default_s <= 0 or self.max_s <= 0:
+            raise ValueError("timeouts must be > 0")
+        if self.default_s > self.max_s:
+            raise ValueError(f"default_s {self.default_s} exceeds max_s {self.max_s}")
+        if self.idle_s is not None and self.idle_s <= 0:
+            raise ValueError("idle_s must be > 0 when set")
+
+    def resolve(self, requested_s: float | None) -> float:
+        """Clamp a model-requested timeout into policy."""
+        if requested_s is None:
+            return self.default_s
+        if not self.model_may_lower:
+            return self.default_s
+        return max(0.0, min(float(requested_s), self.max_s))
+
+
+# ==============================================================================
+# 5 · ToolSpec
+# ==============================================================================
+
+@dataclass(frozen=True, slots=True)
+class ToolSpec:
+    """Declared facts, read INSTEAD of asking the tool. Built once, never mutated.
+
+    TOOL-007: defaults FAIL CLOSED. Incomplete metadata is a construction error,
+    not a permissive runtime guess.
+    """
+
+    name: str
+    """Canonical API name. Must match NAME_PATTERN."""
+
+    version: str
+    """Semantic. Bump when model-visible input, output or behaviour changes
+    incompatibly -- the argument hash includes it, so a bump invalidates every
+    approval issued against the old shape."""
+
+    description: str
+    """The model's only documentation. Costs tokens every turn: say what it is FOR."""
+
+    input_model: type[BaseModel]
+    """Strict boundary validator AND the JSON Schema source. One definition, not two."""
+
+    output_adapter: TypeAdapter[Any]
+    """TOOL-003. Validates success output before persistence or model delivery.
+    A TypeAdapter, not a model, so internal values need not all become BaseModels."""
+
+    category: ToolCategory
+    side_effect: SideEffect
+    risk_level: RiskLevel
+
+    capabilities: frozenset[str]
+    """Fine-grained policy labels -- "fs.read", "process.spawn", "network.http".
+    frozenset: hashable, so a spec stays usable as a dict key and cannot be edited."""
+
+    default_permission: Decision
+    concurrency: ConcurrencyClass
+    resource_keys: Callable[[BaseModel], tuple[str, ...]]
+    """Deterministic lock keys FROM VALIDATED ARGS -- fs:/repo/a.py:write. The class
+    says how it may overlap; these say with what."""
+
+    timeout: TimeoutPolicy
+    interrupt_behavior: InterruptBehavior
+    idempotency: Idempotency
+    max_inline_result_bytes: int
+
+    aliases: tuple[str, ...] = ()
+    """TOOL-012. Resolve OLD transcripts only; generated schemas expose canonical
+    names exclusively, or the model learns to call the deprecated one."""
+
+    deferred: bool = False
+    """Schema withheld until discovery. Discovery does not grant permission."""
+
+    always_load: bool = False
+    availability: Callable[[], bool] | None = None
+    """Evaluates runtime capability WITHOUT mutating state -- it runs on every
+    registry snapshot."""
+
+    cache_ttl_s: float | None = None
+    """Only meaningful when idempotency is PURE."""
+
+    # -- derived ---------------------------------------------------------------
+
+    @property
+    def read_only(self) -> bool:
+        """Kept for ergonomics. The SRS is explicit that this alone is NOT a
+        permission input -- policy reads capabilities and side_effect."""
+        return self.side_effect is SideEffect.NONE
+
+    @property
+    def plan_mode_safe(self) -> bool:
+        """Derived, not declared: a field could contradict side_effect, a property
+        cannot. In PLAN, anything that mutates is not offered at all."""
+        return self.side_effect is SideEffect.NONE
+
+    def __post_init__(self) -> None:
+        """Make an impossible tool un-constructible -- fail on the declaring line."""
+        import re
+
+        if not re.fullmatch(NAME_PATTERN, self.name):
+            raise ValueError(f"{self.name!r}: name must match {NAME_PATTERN}")
+        if not re.fullmatch(r"\d+\.\d+\.\d+", self.version):
+            raise ValueError(f"{self.name}: version must be semantic, got {self.version!r}")
+        if not self.capabilities:
+            raise ValueError(f"{self.name}: capabilities must not be empty (TOOL-007)")
+        if not self.description.strip():
+            raise ValueError(f"{self.name}: description is the model's only documentation")
+
+        # Fail closed: only a pure observation may default to allow.
+        if (self.default_permission is Decision.ALLOW
+                and self.side_effect is not SideEffect.NONE):
+            raise ValueError(
+                f"{self.name}: default_permission=allow requires side_effect=none, "
+                f"got {self.side_effect}"
+            )
+        # Anything that leaves the machine or cannot be undone must interrupt.
+        if (self.side_effect in (SideEffect.EXTERNAL_WRITE, SideEffect.DESTRUCTIVE)
+                and self.default_permission is not Decision.ASK):
+            raise ValueError(
+                f"{self.name}: {self.side_effect} must default to ask"
+            )
+        if self.side_effect is SideEffect.NONE and self.risk_level is not RiskLevel.LOW:
+            raise ValueError(f"{self.name}: side_effect=none implies risk_level=low")
+        # A mutation cannot be freely parallel -- it needs at least a resource lock.
+        if (self.side_effect is not SideEffect.NONE
+                and self.concurrency is ConcurrencyClass.PARALLEL):
+            raise ValueError(
+                f"{self.name}: {self.side_effect} may not be concurrency=parallel"
+            )
+        if self.cache_ttl_s is not None and self.idempotency is not Idempotency.PURE:
+            raise ValueError(f"{self.name}: only a pure tool may be cached")
+        if self.max_inline_result_bytes <= 0:
+            raise ValueError(f"{self.name}: max_inline_result_bytes must be > 0")
+        if self.always_load and self.deferred:
+            raise ValueError(f"{self.name}: always_load contradicts deferred")
+
+
+# ==============================================================================
+# 6 · Permission data   (policy itself lives in base.py)
+# ==============================================================================
+
+@dataclass(frozen=True, slots=True)
+class PermissionFacts:
+    """What the tool tells the policy. The tool never prompts anyone itself."""
+
+    capabilities: frozenset[str]
+    side_effect: SideEffect
+    risk_level: RiskLevel
+    resource_keys: tuple[str, ...]
+    human_summary: str
+    """One line, shown at the approval prompt. The user approves THIS sentence."""
+    proposed_diff_artifact_id: str | None = None
+    """Approval must show the exact diff, never a summary of it."""
+
+
+@dataclass(slots=True)
 class PermissionResult:
-    """The outcome of one permission check. Pure data -- the policy lives in base.py."""
-
     decision: Decision
-    """ALLOW / DENY / ASK."""
-
     reason: str = ""
-    """Prose, for a human or the model to read. Reworded freely -- never key on it."""
-
+    """Prose for a human. Reworded freely -- never key on it."""
     rule: str = ""
-    """Stable token naming the branch that decided: "always_deny", "plan_mode",
-    "read_only", "bypass", "always_allow", "session", "accept_edits", "default".
-    This is what tests assert on and what metrics group by."""
+    """Stable token naming the branch that decided. Tests assert on THIS."""
 
     @property
     def allowed(self) -> bool:
         return self.decision is Decision.ALLOW
 
 
-
-# NOTE ->> PermissionContext: @dataclass, MUTABLE. mode, always_allow, always_deny, session_allow.
-# NOTE ->> Three sets, not one: always_* persist to config, session_allow dies with the process.
-# NOTE ->> remember_allow(key, persist=False) -> route into the right set. One line.
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True)
 class PermissionContext:
-    """Mutable state for the permission policy. One instance per session.
-
-    The policy reads this on every tool call, and may mutate it when the user
-    approves a prompt. It is never imported globally -- the engine passes it in.
-    """
+    """Mutable session state. The policy reads it on every call and may grow it."""
 
     mode: PermissionMode
-    """Session-wide posture: how much the agent may do without asking."""
-
     always_allow: set[str] = field(default_factory=set)
-    """Persisted to config -- a user-approved allow-list of tool IDs."""
-
     always_deny: set[str] = field(default_factory=set)
-    """Persisted to config -- a user-approved deny-list of tool IDs."""
-
+    """Wins in EVERY mode, BYPASS included. A deny-list bypass can override is a
+    suggestion, not a deny-list."""
     session_allow: set[str] = field(default_factory=set)
-    """Dies with the process -- a user-approved allow-list of tool IDs."""
 
     def remember_allow(self, key: str, persist: bool = False) -> None:
-        """Route one approval into the right set. persist=True outlives the process.
-
-        Default False on purpose: an approval is temporary unless the user says
-        otherwise, so a misclick costs one session, not every session after it.
-        """
+        """Route one approval. Default False: a misclick costs one session."""
         (self.always_allow if persist else self.session_allow).add(key)
 
+
 # ==============================================================================
-# 4 · ToolSpec
+# 7 · Canonicalisation   (TOOL-011)
 # ==============================================================================
 
-# NOTE ->> @dataclass(frozen=True, slots=True). Built once per tool class, never mutated.
-# NOTE ->> Fields: name, category, risk, read_only, concurrency_safe, timeout_s, budget_ms,
-# NOTE ->>         description="", cache_ttl_s=None, plan_mode_safe=True.
-# NOTE ->> read_only + concurrency_safe are load-bearing: they decide parallelism, caching, prompting.
-# NOTE ->> budget_ms is a latency assertion, not a comment -- a test will fail when a tool slows down.
-# NOTE ->> __post_init__ must REJECT incoherent specs at import time. An impossible tool
-# NOTE ->> should be un-constructible, not a runtime surprise. Four rules:
-# NOTE ->> (a) read_only  =>  risk is SAFE
-# NOTE ->> (b) cache_ttl_s is not None  =>  read_only
-# NOTE ->> (c) not read_only  =>  not plan_mode_safe
-# NOTE ->> (d) timeout_s > 0
-@dataclass(frozen=True, slots=True)
-class ToolSpec:
-    """Declared facts about a tool, read by the engine INSTEAD of asking the tool.
+def canonical_json(payload: Any) -> str:
+    """Stable key order, no incidental whitespace. Two equal calls hash equal."""
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False, default=str)
 
-    frozen: built once per tool class, so it can be shared and trusted.
+
+def argument_hash(tool_name: str, tool_version: str, arguments: Any) -> str:
+    """The identity an approval is bound to.
+
+    Version is in the hash on purpose: bumping a tool's version invalidates every
+    approval issued against the old argument shape, which is what stops an approval
+    surviving a change to what it meant.
     """
+    payload = f"{tool_name}\x00{tool_version}\x00{canonical_json(arguments)}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    name: str
-    """Identity the model calls and logs group by. str, not an enum -- the tool
-    set is open, plugins register names this file never sees."""
 
-    category: ToolCategory
-    """Grouping for listings and metrics. Enum: closed set, so a typo raises here
-    instead of quietly creating a category of one."""
-
-    risk: RiskLevel
-    """Top input to the permission decision. Enum for the same reason, and because
-    tests and metrics key on these exact four tokens."""
-
-    read_only: bool
-    """Changes nothing -- no file, no process, no remote state. Load-bearing three
-    times: DEFAULT auto-allows it, only it may be cached, only it survives PLAN."""
-
-    concurrency_safe: bool
-    """Two calls may overlap. Decides fan-out vs serial -- a turn that takes a
-    second instead of ten."""
-
-    timeout_s: float
-    """Hard ceiling on one call. Seconds because it is compared against the turn
-    deadline, which is also seconds (time.monotonic)."""
-
-    budget_ms: float
-    """Asserted latency, not a comment -- a test fails when the tool slows past it.
-    Milliseconds because tools are sub-second; seconds would be all zeroes."""
-
-    description: str = ""
-    """Model-facing prose. Defaults empty because it is re-sent every turn: pay
-    tokens only where the model actually needs steering."""
-
-    cache_ttl_s: float | None = None
-    """Seconds a result stays reusable. None rather than 0 -- "never cache" and
-    "cached, already expired" are different states."""
-
-    plan_mode_safe: bool = True
-    """May be OFFERED in PLAN mode -- withheld from the listing, not merely denied.
-    Defaults True for the read-only majority; __post_init__ rejects it on mutators."""
-
-    def __post_init__(self) -> None:
-        """Make an impossible tool un-constructible -- fail on the declaring line."""
-        if self.read_only and self.risk != RiskLevel.SAFE:
-            raise ValueError(f"{self.name}: read_only tool must be SAFE, got {self.risk}")
-        if self.cache_ttl_s is not None and not self.read_only:
-            raise ValueError(f"{self.name}: only a read_only tool may be cached")
-        if not self.read_only and self.plan_mode_safe:
-            raise ValueError(f"{self.name}: a mutating tool is never plan_mode_safe")
-        if self.timeout_s <= 0:
-            raise ValueError(f"{self.name}: timeout_s must be > 0, got {self.timeout_s}")
+def execution_key(run_id: str, tool_call_id: str, arg_hash: str) -> str:
+    """Deduplication identity across a reconnect -- see Idempotency."""
+    return f"{run_id}:{tool_call_id}:{arg_hash}"
 
 
 # ==============================================================================
-# 5 · AgentContext
+# 8 · Context
 # ==============================================================================
 
-# NOTE ->> @dataclass. Dependencies passed IN, never imported globally. One instance per turn.
-# NOTE ->> Identity/config fields: cwd, permission, session_id, request_id, provider, model.
-# NOTE ->> Deadlines: deadline_at, started_at. Use time.monotonic() -- never time.time(), it jumps.
-# NOTE ->> in_progress_tool_ids + confirmed_tool_calls: sets, for the approval round-trip in Step 8.
-# NOTE ->> on_progress / on_permission_request: optional callables. None in batch/SDK runs --
-# NOTE ->> that is what keeps the core free of any terminal dependency.
-# NOTE ->> extras: dict -- per-turn scratch space. The file-state tracker lands here in Step 7.
-# NOTE ->> __post_init__: normalise cwd -> Path(self.cwd).resolve().
 @dataclass(slots=True)
 class AgentContext:
-    """Everything one turn needs, passed in rather than imported. Mutable by design.
+    """Per-TURN state. Mutable, and passed in rather than imported (TOOL-015).
 
-    NOT frozen: in_progress_tool_ids, confirmed_tool_calls and extras all change
-    as the turn runs, and __post_init__ rewrites cwd.
+    One instance per turn; ToolRuntimeContext is minted per CALL from it.
     """
 
     cwd: Path
-    """Project root AND the containment boundary -- __post_init__ resolves it so
-    every later comparison is against a real path, not a relative guess."""
-
+    """Workspace root AND the containment boundary."""
     permission: PermissionContext
-    """The session half of the permission decision; ToolSpec.risk is the tool half."""
-
     session_id: str
-    """Spans many turns. Groups logs into one conversation."""
-
-    request_id: str
-    """This turn only. str, not int -- it is a correlation token, never arithmetic."""
-
+    run_id: str
+    turn_id: str
+    actor_id: str
     provider: str
-    """"anthropic", "openai", ... str not enum: a new provider must not need an edit here."""
-
     model: str
-    """Exact model id, for cost accounting and per-model behaviour switches."""
 
     deadline_at: float | None = None
-    """monotonic timestamp the turn must finish by. None = no deadline, which is
-    why remaining_s() returns inf rather than 0 -- absent is not expired."""
-
+    """monotonic. None = unbounded, which is why remaining_s() returns inf: absent
+    is not expired."""
     started_at: float = field(default_factory=time.monotonic)
-    """monotonic, never time.time(): wall clock jumps on NTP and would corrupt
-    every duration measured across it."""
-
     in_progress_tool_ids: set[str] = field(default_factory=set)
-    """Calls currently running. set: membership is the only question asked."""
-
     confirmed_tool_calls: set[str] = field(default_factory=set)
-    """Calls the user approved. Keyed by tool_call_id, not tool name -- approval
-    is granted to one specific call, and must not leak to the next one."""
-
-    on_progress: Callable[[str], None] | None = None
-    """Optional sink for progress lines. None in batch/SDK runs."""
-
-    on_permission_request: Callable[[ToolSpec, dict[str, Any]], PermissionResult] | None = None
-    """Optional prompter. None means nobody can answer, so ASK becomes DENY --
-    this is what keeps the core free of any terminal dependency."""
-
+    on_progress: Callable[[ToolProgress], None] | None = None
+    on_permission_request: Callable[[PermissionFacts], PermissionResult] | None = None
+    """None means nobody can answer, so ASK becomes DENY. That is what keeps the
+    core free of any terminal dependency."""
     extras: dict[str, Any] = field(default_factory=dict)
-    """Per-turn scratch space. dict so a later step can add state without
-    reopening this file -- the file-state tracker lands here in Step 7."""
+    """Per-turn scratch space -- the file-state tracker lands here."""
 
     def __post_init__(self) -> None:
-        """Normalise cwd once, so containment checks compare resolved to resolved."""
         self.cwd = Path(self.cwd).resolve()
 
-    # -- deadline helpers ------------------------------------------------------
+    # -- deadlines -------------------------------------------------------------
 
     def remaining_s(self) -> float:
-        """Seconds left in the turn. inf when unbounded, floored at 0 when past."""
         if self.deadline_at is None:
             return float("inf")
         return max(0.0, self.deadline_at - time.monotonic())
 
-    def budget_for(self, spec: ToolSpec) -> float:
-        """The tool's own ceiling, clipped by what is left of the turn."""
-        return min(spec.timeout_s, self.remaining_s())
+    def budget_for(self, spec: ToolSpec, requested_s: float | None = None) -> float:
+        """The tool's own policy, clipped by what is left of the turn."""
+        return min(spec.timeout.resolve(requested_s), self.remaining_s())
 
     def elapsed_ms(self) -> float:
         return (time.monotonic() - self.started_at) * 1000.0
@@ -378,22 +564,49 @@ class AgentContext:
     def resolve_in_project(self, raw: str | Path) -> Path:
         """The one chokepoint for path traversal. Every filesystem tool routes here.
 
-        .resolve() FIRST, then check containment -- checked the other way round, a
-        symlink inside the project walks straight out and passes.
+        .resolve() FIRST, then check containment -- the other way round, a symlink
+        inside the project walks straight out and passes.
         """
         candidate = Path(raw)
         target = (candidate if candidate.is_absolute() else self.cwd / candidate).resolve()
         if target != self.cwd and not target.is_relative_to(self.cwd):
-            raise ValueError(f"path escapes project root: {raw!r} -> {target}")
+            raise ValueError(f"path escapes workspace root: {raw!r} -> {target}")
         return target
 
+    def runtime_for(self, tool_call_id: str, workspace_id: str = "default") -> "ToolRuntimeContext":
+        """Mint the per-call context. Frozen, so a tool cannot edit its own identity."""
+        return ToolRuntimeContext(
+            session_id=self.session_id, run_id=self.run_id, turn_id=self.turn_id,
+            tool_call_id=tool_call_id, workspace_id=workspace_id,
+            workspace_root=self.cwd, actor_id=self.actor_id,
+            permission_mode=self.permission.mode, turn=self,
+        )
 
-# ==============================================================================
-# Gate  ->  tests/agent/test_contracts.py
-# ==============================================================================
 
-# NOTE ->> resolve_in_project("../../../etc/passwd") raises ValueError.
-# NOTE ->> resolve_in_project("src/x.py") returns a path under cwd.
-# NOTE ->> a symlink pointing outside the project is rejected.
-# NOTE ->> ToolSpec(read_only=True, risk=HIGH, ...) raises.
-# NOTE ->> ToolSpec(read_only=False, plan_mode_safe=True, ...) raises.
+@dataclass(frozen=True, slots=True)
+class ToolRuntimeContext:
+    """Per-CALL identity and wiring. Frozen: trusted, process-local, not JSON.
+
+    A plain dataclass rather than a BaseModel because it carries units of work,
+    adapters, clients and callbacks -- none of which mean anything serialised.
+    Public requests and persisted records stay Pydantic.
+    """
+
+    session_id: str
+    run_id: str
+    turn_id: str
+    tool_call_id: str
+    workspace_id: str
+    workspace_root: Path
+    actor_id: str
+    permission_mode: PermissionMode
+    turn: AgentContext
+    """The per-turn context -- deadlines, path chokepoint, progress sink."""
+
+    def emit_progress(self, progress: ToolProgress) -> None:
+        """Advisory. Dropped when nobody is listening -- never a terminal fact."""
+        if self.turn.on_progress is not None:
+            self.turn.on_progress(progress)
+
+    def resolve_in_project(self, raw: str | Path) -> Path:
+        return self.turn.resolve_in_project(raw)
