@@ -351,9 +351,16 @@ class ToolSpec[ArgsT: BaseModel, OutputT]:
 
     default_permission: Decision
     concurrency: ConcurrencyClass
-    resource_keys: Callable[[BaseModel], tuple[str, ...]]
+    resource_keys: Callable[[ArgsT], tuple[str, ...]]
     """Deterministic lock keys FROM VALIDATED ARGS -- fs:/repo/a.py:write. The class
-    says how it may overlap; these say with what."""
+    says how it may overlap; these say with what.
+
+    ArgsT, not BaseModel. Callable parameters are CONTRAVARIANT, so the erased
+    version did not merely lose the type -- it rejected the only function anyone
+    would write: Callable[[ReadArgs], ...] is not assignable to
+    Callable[[BaseModel], ...]. Every tool would have been pushed to annotate
+    args: BaseModel and reach for getattr or a cast, in the one function whose
+    contract is that it reads VALIDATED args."""
 
     timeout: TimeoutPolicy
     interrupt_behavior: InterruptBehavior
