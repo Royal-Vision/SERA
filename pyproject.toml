@@ -49,6 +49,7 @@ dependencies = [
     # perf.install_event_loop_policy() picks whichever is importable.
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "winloop>=0.6.3; sys_platform == 'win32'",
+    "mypy>=2.3.1",
 ]
 
 [[tool.uv.index]]
@@ -60,12 +61,7 @@ explicit = true
 torch = { index = "pytorch-cu126" }
 torchvision = { index = "pytorch-cu126" }
 
-[dependency-groups]
-dev = [
-    "ipykernel>=7.3.0",
-    "pytest>=9.0.3",
-    "pytest-mock>=3.15.1",
-]
+
 
 [tool.uv]
 package = false
@@ -75,3 +71,15 @@ testpaths = ["app/blueprints/rag_eval/tests"]
 markers = [
     "integration: hits external services (MLflow, Qdrant, OpenAI judge). Slow + may incur small cost.",
 ]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "pytest>=9.0.3",
+    "pytest-mock>=3.15.1",
+    "ty>=0.0.1a20",
+    "ruff>=0.16.4",
+]
+
+[tool.ty.src]
+exclude = ["app/agent/_old", "app/blueprints/old"]

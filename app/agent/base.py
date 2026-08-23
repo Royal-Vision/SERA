@@ -10,7 +10,6 @@
     tool implementation outside ToolExecutor. That single chokepoint is what makes
     every requirement below enforceable in one place.
 """
-
 # NOTE ->> Import discipline: stdlib + pydantic ONLY. `import langgraph.graph` = ~1800 ms.
 
 

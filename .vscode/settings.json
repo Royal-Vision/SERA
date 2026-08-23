@@ -1,0 +1,18 @@
+{
+  // Autocomplete off for Python in this workspace -- the exercises in test.py
+  // are meant to be typed from memory, not accepted from a popup.
+  "[python]": {
+    "editor.quickSuggestions": {
+      "other": false,
+      "comments": false,
+      "strings": false
+    },
+    "editor.suggestOnTriggerCharacters": false,
+    "editor.wordBasedSuggestions": "off",
+    "editor.acceptSuggestionOnEnter": "on",
+    "editor.tabCompletion": "off",
+    "editor.parameterHints.enabled": false,
+    "editor.inlineSuggest.enabled": false
+  },
+  "python.analysis.autoImportCompletions": false
+}

@@ -198,7 +198,7 @@ class ToolError(BaseModel):
     @classmethod
     def of(cls, code: ErrorCode, message: str, **details: Any) -> "ToolError":
         return cls(code=code, message=message,
-                   retryable=code in _RETRYABLE, details=details or None)
+                    retryable=code in _RETRYABLE, details=details or None)
 
 
 class ArtifactRef(BaseModel):
@@ -237,10 +237,9 @@ class ToolProgress(BaseModel):
 # 3 · ToolResult
 # ==============================================================================
 
-OutputT = TypeVar("OutputT")
 
 
-class ToolResult(BaseModel, Generic[OutputT]):
+class ToolResult[OutputT](BaseModel):
     """One settled outcome, in two representations.
 
     `output` is the typed structure for the database, the SDK and tests.
@@ -317,7 +316,7 @@ class TimeoutPolicy:
 # ==============================================================================
 
 @dataclass(frozen=True, slots=True)
-class ToolSpec:
+class ToolSpec[ArgsT: BaseModel, OutputT]:
     """Declared facts, read INSTEAD of asking the tool. Built once, never mutated.
 
     TOOL-007: defaults FAIL CLOSED. Incomplete metadata is a construction error,
@@ -335,10 +334,10 @@ class ToolSpec:
     description: str
     """The model's only documentation. Costs tokens every turn: say what it is FOR."""
 
-    input_model: type[BaseModel]
+    input_model: type[ArgsT]
     """Strict boundary validator AND the JSON Schema source. One definition, not two."""
 
-    output_adapter: TypeAdapter[Any]
+    output_adapter: TypeAdapter[OutputT]
     """TOOL-003. Validates success output before persistence or model delivery.
     A TypeAdapter, not a model, so internal values need not all become BaseModels."""
 
@@ -549,7 +548,7 @@ class AgentContext:
             return float("inf")
         return max(0.0, self.deadline_at - time.monotonic())
 
-    def budget_for(self, spec: ToolSpec, requested_s: float | None = None) -> float:
+    def budget_for[K: BaseModel, V](self, spec: ToolSpec[K, V], requested_s: float | None = None) -> float:
         """The tool's own policy, clipped by what is left of the turn."""
         return min(spec.timeout.resolve(requested_s), self.remaining_s())
 
