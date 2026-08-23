@@ -67,7 +67,7 @@ torchvision = { index = "pytorch-cu126" }
 package = false
 
 [tool.pytest.ini_options]
-testpaths = ["app/blueprints/rag_eval/tests"]
+testpaths = ["tests", "app/blueprints/rag_eval/tests"]
 markers = [
     "integration: hits external services (MLflow, Qdrant, OpenAI judge). Slow + may incur small cost.",
 ]

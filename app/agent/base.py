@@ -11,7 +11,19 @@
     every requirement below enforceable in one place.
 """
 # NOTE ->> Import discipline: stdlib + pydantic ONLY. `import langgraph.graph` = ~1800 ms.
+import asyncio
+import hashlib
+import orjson
+import pathlib
+from typing import Never, Protocol
 
+from pydantic import BaseModel, JsonValue
+
+from app.agent.contracts import (
+    ToolSpec,
+    PermissionFacts,
+    ToolRuntimeContext
+    )
 
 # ==============================================================================
 # 1 · Tool  --  Protocol or ABC?
@@ -26,9 +38,112 @@
 # CONFLICT ->> from our base class; keep the ABC as what built-ins actually subclass.
 # CONFLICT ->> Decide before writing the first tool -- retrofitting changes every file.
 
+
 # NOTE ->> Members: spec: ToolSpec (class attribute -- one per tool CLASS, not instance).
 # NOTE ->> json_schema(): built from spec.input_model.model_json_schema(). Cache it --
 # NOTE ->> it is rebuilt on every registry snapshot otherwise.
+
+# NOTE ->> Return type: NOT dict[str, Any]. `Any` is the type checker being switched OFF,
+# NOTE ->> and it costs three separate things here:
+# NOTE ->>   1. DEPTH.      schema["properties"]["path"]["enum"].split() type-checks clean.
+# NOTE ->>                  JsonValue is the recursive JSON union -- every leaf stays a
+# NOTE ->>                  str/int/float/bool/None/list/dict and nothing else.
+# NOTE ->>   2. PROVENANCE. dict[str, Any] cannot say WHICH model the schema came from, so
+# NOTE ->>                  ReadArgs' schema is assignable wherever WriteArgs' is expected.
+# NOTE ->>                  SchemaOf[ArgsT] carries the source model as a phantom parameter.
+# NOTE ->>   3. OWNERSHIP.  the schema above is CACHED and handed to the snapshot, the
+# NOTE ->>                  provider payload and MCP adapters. Handing out a live mutable
+# NOTE ->>                  dict means any of them can edit the cached copy -- and the
+# NOTE ->>                  schema HASH in the snapshot then describes a different object.
+# NOTE ->> pydantic's own JsonSchemaValue IS dict[str, Any]; that is its type, not ours.
+
+
+_FROZEN = "JsonSchema is cached and shared -- copy it before editing"
+
+
+class JsonSchema(dict[str, JsonValue]):
+    """A JSON Schema document: a frozen JSON object, JsonValue all the way down.
+
+    A dict SUBCLASS, not a Mapping: orjson serialises dict subclasses natively, so
+    this drops straight into a provider payload with no `default=` hook. Frozen
+    because one instance is shared by the registry snapshot, the request builder and
+    every adapter -- and its sha256 is recorded as identity (TOOL-013). A schema that
+    can be edited after hashing makes that hash a lie.
+
+    Use this as the ERASED type -- registry maps, MCP adapters, anything holding
+    schemas for many different tools at once. It needs no parameter, so a
+    heterogeneous container never has to reach for Any.
+    """
+
+    __slots__ = ()
+
+    # Every mutator raises. `Never` parameters lift the three spelled as operators
+    # -- schema[k] = v, del schema[k], schema |= {...} -- to STATIC errors too; mypy
+    # resolves update/pop/setdefault/clear/popitem through typeshed's dict overloads,
+    # so those stay runtime-only. The ignores are load-bearing: narrowing a parameter
+    # to Never is a deliberate Liskov violation, and that is precisely what makes the
+    # mutation unspellable rather than merely discouraged.
+    def __setitem__(self, key: Never, value: Never) -> Never:  # type: ignore[override]
+        raise TypeError(_FROZEN)
+
+    def __delitem__(self, key: Never) -> Never:  # type: ignore[override]
+        raise TypeError(_FROZEN)
+
+    def __ior__(self, other: Never) -> Never:  # type: ignore[override, misc]
+        raise TypeError(_FROZEN)
+
+    def update(self, *args: object, **kwargs: object) -> Never:
+        raise TypeError(_FROZEN)
+
+    def setdefault(self, *args: object, **kwargs: object) -> Never:
+        raise TypeError(_FROZEN)
+
+    def pop(self, *args: object, **kwargs: object) -> Never:
+        raise TypeError(_FROZEN)
+
+    def popitem(self) -> Never:
+        raise TypeError(_FROZEN)
+
+    def clear(self) -> Never:
+        raise TypeError(_FROZEN)
+
+    def sha256(self) -> str:
+        """Schema identity for the snapshot. Sorted keys: equal schemas hash equal."""
+        return hashlib.sha256(orjson.dumps(self, option=orjson.OPT_SORT_KEYS)).hexdigest()
+
+
+class SchemaOf[ModelT: BaseModel](JsonSchema):
+    """The schema OF ModelT. ModelT is phantom -- it exists only for the checker.
+
+    Nothing at runtime distinguishes SchemaOf[ReadArgs] from SchemaOf[WriteArgs];
+    that is the point. The parameter travels with the value so a schema cannot drift
+    away from the model it was generated from, and it widens to plain JsonSchema by
+    ordinary subtyping the moment a caller stops caring.
+    """
+
+    __slots__ = ()
+
+    @classmethod
+    def of(cls, model: type[ModelT]) -> SchemaOf[ModelT]:
+        """The ONE place a schema is built. One source (the input model), one shape."""
+        return cls(model.model_json_schema())
+
+
+class Tool[InputT: BaseModel, OutputT](Protocol):
+    spec: ToolSpec[InputT, OutputT]
+
+    def json_schema(self) -> SchemaOf[InputT]:
+        """Built from spec.input_model, cached per CLASS. See TOOL-013."""
+        ...
+
+
+    async def validate_semantics(self, *args, ctx) -> None: ...
+
+    async def execute(self, *args, ctx) -> OutputT: ...
+
+    async def permission_facts(self, ctx) -> PermissionFacts: ...
+
+
 
 # -- the two methods a tool actually writes -------------------------------------
 # NOTE ->> async validate_semantics(args, ctx) -> None
