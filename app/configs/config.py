@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     CACHE_KEY_PREFIX: str = Field(default="sera")
 
     # ─── Agent: inference thread pools ───
-    # Bounded so concurrent torch forward passes cannot OOM the GPU.
+    # Bounded so concurrent inference calls cannot exhaust the provider.
     EMBED_MAX_CONCURRENCY: int = Field(default=2)
     RERANK_MAX_CONCURRENCY: int = Field(default=2)
     EMBED_BATCH_WINDOW_MS: int = Field(default=0)  # 0 = no micro-batching yet

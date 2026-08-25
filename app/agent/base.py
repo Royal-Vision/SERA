@@ -11,11 +11,11 @@
     every requirement below enforceable in one place.
 """
 # NOTE ->> Import discipline: stdlib + pydantic ONLY. `import langgraph.graph` = ~1800 ms.
-import asyncio
 import hashlib
-import orjson
-import pathlib
+from abc import ABC, abstractmethod
 from typing import Never, Protocol
+
+import orjson
 
 from pydantic import BaseModel, JsonValue
 
@@ -137,12 +137,93 @@ class Tool[InputT: BaseModel, OutputT](Protocol):
         ...
 
 
-    async def validate_semantics(self, *args:InputT, ctx: ToolRuntimeContext) -> None: ...
+    async def validate_semantics(self, args: InputT, ctx: ToolRuntimeContext) -> None: ...
 
-    async def execute(self, *args: InputT, ctx: ToolRuntimeContext) -> OutputT: ...
+    async def execute(self, args: InputT, ctx: ToolRuntimeContext) -> OutputT: ...
 
     async def permission_facts(self, args: InputT, ctx: ToolRuntimeContext) -> PermissionFacts: ...
 
+
+
+# ==============================================================================
+# 1b · BaseTool  --  the CONFLICT above, resolved
+# ==============================================================================
+
+# RESOLVED ->> ABC that STRUCTURALLY SATISFIES Tool. Built-ins subclass this and get
+# RESOLVED ->> json_schema/validate_semantics/permission_facts for free, overriding only
+# RESOLVED ->> what differs. The Protocol stays the PUBLISHED type, so an MCP or plugin
+# RESOLVED ->> adapter that cannot inherit from us is still a Tool to the registry.
+
+
+class ToolSemanticError(Exception):
+    """A fact JSON Schema cannot express turned out false -> ErrorCode.SEMANTIC_INVALID.
+
+    Typed, not `except Exception` on message text (§4). `remedy` is the sentence the
+    model acts on: an error message is a prompt, so the tool writes the way forward
+    rather than leaving the executor to invent one.
+    """
+
+    def __init__(self, message: str, *, remedy: str = "", **details: object) -> None:
+        super().__init__(message)
+        self.message = message
+        self.remedy = remedy
+        self.details = details
+
+    def as_model_text(self) -> str:
+        return f"{self.message} {self.remedy}".strip()
+
+
+class BaseTool[InputT: BaseModel, OutputT](ABC):
+    """What every built-in subclasses. Structurally a Tool; nominally an ABC."""
+
+    spec: ToolSpec[InputT, OutputT]
+
+    # Per-CLASS schema cache. Rebuilt on every registry snapshot otherwise, and the
+    # snapshot records its sha256 as identity (TOOL-013) -- so it must also be the
+    # SAME object every time, not merely an equal one.
+    _schema: SchemaOf[InputT] | None = None
+
+    @classmethod
+    def schema_for(cls) -> SchemaOf[InputT]:
+        # cls.__dict__, not getattr: getattr walks the MRO and a subclass would
+        # inherit its parent's cached schema -- the wrong model's schema entirely.
+        cached = cls.__dict__.get("_schema")
+        if cached is None:
+            cached = SchemaOf.of(cls.spec.input_model)
+            cls._schema = cached
+        return cached
+
+    def json_schema(self) -> SchemaOf[InputT]:
+        return type(self).schema_for()
+
+    async def validate_semantics(self, args: InputT, ctx: ToolRuntimeContext) -> None:
+        """Default: nothing beyond the schema. Override to check the world.
+
+        Runs BEFORE permission, so it runs on calls that will be denied -- keep it
+        bounded and cancellable, and never let it perform the side effect.
+        """
+        return None
+
+    async def permission_facts(self, args: InputT, ctx: ToolRuntimeContext) -> PermissionFacts:
+        """Default: restate the spec. Override where the ARGS change the answer --
+        bash(ls) is side_effect=none, bash(rm -rf) is destructive."""
+        return PermissionFacts(
+            capabilities=self.spec.capabilities,
+            side_effect=self.spec.side_effect,
+            risk_level=self.spec.risk_level,
+            resource_keys=self.spec.resource_keys(args),
+            human_summary=self.human_summary(args),
+        )
+
+    def human_summary(self, args: InputT) -> str:
+        """One line, read by a person at 2am deciding whether to approve. Not a log line."""
+        return f"{self.spec.name}({args.model_dump_json()})"
+
+    @abstractmethod
+    async def execute(self, args: InputT, ctx: ToolRuntimeContext) -> OutputT:
+        """The TYPED output -- never a ToolResult. The executor wraps it, so a tool
+        cannot forge a status or skip output validation."""
+        raise NotImplementedError
 
 
 # -- the two methods a tool actually writes -------------------------------------

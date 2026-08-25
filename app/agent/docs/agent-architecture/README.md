@@ -25,6 +25,31 @@ LangGraph's recursion limit is the final graph-level circuit breaker. Product
 budgets and no-progress detection provide meaningful stop reasons before that
 breaker is reached.
 
+## Architecture visuals
+
+![Production LangGraph agent runtime](../assets/production-langgraph-agent-runtime.png)
+
+This visual is a target architecture for this repository: the model may choose
+tools, but the command boundary, policy/approval decision, central executor,
+checkpoint store, and observable event stream remain application-owned.
+
+![LangGraph agent patterns](../assets/langgraph-agent-patterns.png)
+
+![Animated LangGraph agent architecture](../assets/animated-langgraph-agent-architecture.png)
+
+The third visual is an animation reference: illuminate the active node, animate
+dotted flow along the selected edge, use amber while awaiting approval, and
+switch to green when a node completes. It is a presentation layer over ordered
+runtime events; it must not infer hidden model reasoning.
+
+For an interactive learning version with setup, code examples, production
+guidance, and official diagram resources, open
+[LangGraph Production Guide](../../../../learning-langgraph/LangGraph_Production_Guide.ipynb).
+
+Official production-pattern references: [workflows and agents](https://docs.langchain.com/oss/python/langgraph/workflows-agents),
+[persistence](https://docs.langchain.com/oss/python/langgraph/persistence), and
+[multi-agent patterns](https://docs.langchain.com/oss/python/langchain/multi-agent/index).
+
 ## Why this is a separate folder
 
 Tool definitions describe capabilities. The agent graph describes **when and
