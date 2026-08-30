@@ -14,5 +14,12 @@
     "editor.parameterHints.enabled": false,
     "editor.inlineSuggest.enabled": false
   },
-  "python.analysis.autoImportCompletions": false
+  "python.analysis.autoImportCompletions": false,
+
+  // Notebook output: wrap long lines onto new lines instead of clipping them
+  // at the right edge of the screen, and show more of a long output before
+  // it gets truncated.
+  "notebook.output.wordWrap": true,
+  "notebook.output.textLineLimit": 200,
+  "notebook.output.scrolling": false
 }

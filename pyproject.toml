@@ -42,6 +42,8 @@ dependencies = [
     "uvloop>=0.22.1; sys_platform != 'win32'",
     "winloop>=0.6.3; sys_platform == 'win32'",
     "mypy>=2.3.1",
+    "deepagents>=0.7.11",
+    "openai-codex>=0.147.0",
 ]
 
 [tool.uv]
