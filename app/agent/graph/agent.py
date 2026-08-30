@@ -1,4 +1,5 @@
-"""build_agent() -- Phases 08-09 · Step 10.
+"""
+build_agent() -- Phases 08-09 · Step 10.
 
 StateGraph wiring only: model node, tool node delegating to engine/executor.py,
 and the conditional edge between them. No tool logic lands here; if it does, the
