@@ -9,10 +9,23 @@ NOTE ->> Codex sign-in below is NOT that protocol -- it drives the codex binary
 NOTE ->> over JSON-RPC. It lives here only until providers/codex.py exists.
 """
 
+import asyncio
+import json
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING
 
+import httpx
 from openai_codex import AsyncCodex, AsyncDeviceCodeLoginHandle
 from pydantic import BaseModel
+
+from app.configs.config import get_settings
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
+
+CODEX_AUTH_FILE = Path.home() / ".codex" / "auth.json"
 
 
 class OpenAIVerification(BaseModel):
@@ -84,6 +97,7 @@ class CodexAuth:
         codex = codex or AsyncCodex()
         try:
             state = await codex.account()
+            print(f"state: {state} | {type(state)}")
         finally:
             if owned:
                 await codex.close()
@@ -97,12 +111,19 @@ class CodexAuth:
             plan=plan.value if plan is not None else None,
         )
 
-    async def login_with_codex(self) -> CodexLogin:
-        codex = AsyncCodex()
+    async def login_with_codex(self, codex: AsyncCodex | None = None) -> CodexLogin:
+        """Start a device-code login, reusing the client the pre-check spawned.
+
+        Ownership: this closes only a client it spawned itself. One you passed
+        in stays yours until the returned `CodexLogin` takes it over.
+        """
+        owned = codex is None
+        codex = codex or AsyncCodex()
         try:
             handle = await codex.login_chatgpt_device_code()
         except Exception:
-            await codex.close()
+            if owned:
+                await codex.close()
             raise
         return CodexLogin(
             codex=codex,
@@ -112,3 +133,100 @@ class CodexAuth:
             ),
             handle=handle,
         )
+
+    async def __call__(self, model: str | None = None) -> "BaseChatModel":
+        """Ensure a credential exists, then hand back the LLM for the deep agent.
+
+        The codex client is only ever the proof that a credential is on disk --
+        it is closed before returning, because deepagents talks the wire format,
+        not JSON-RPC to the binary. What survives the call is the key.
+        """
+        codex = AsyncCodex()
+        try:
+            account = await self.current_account(codex=codex)
+
+            if account is None:
+                login = await self.login_with_codex(codex)
+
+                print(
+                    f"open {login.verification.verification_url} "
+                    f"and enter {login.verification.user_code}"
+                )
+
+                codex = await login.wait()
+                account = await self.current_account(codex=codex)
+        finally:
+            await codex.close()
+
+        return get_model(model)
+
+
+def _codex_api_key() -> str:
+    """The key to call /v1/chat/completions with -- settings first, codex store second.
+
+    ChatGPT (device-code) auth deliberately fails here: it mints OAuth tokens for
+    the codex backend, not a key any OpenAI-compatible endpoint accepts. Only the
+    apiKey auth mode leaves something usable behind.
+    """
+    settings = get_settings()
+    if settings.OPENAI_API_KEY:
+        return settings.OPENAI_API_KEY
+    if not CODEX_AUTH_FILE.exists():
+        raise RuntimeError(
+            "no OpenAI credential -- set OPENAI_API_KEY or run `codex login --api-key`"
+        )
+    stored = json.loads(CODEX_AUTH_FILE.read_text(encoding="utf-8"))
+    key = stored.get("OPENAI_API_KEY")
+    if not key:
+        raise RuntimeError(
+            f"codex auth_mode is {stored.get('auth_mode')!r}, which holds no API key -- "
+            "set OPENAI_API_KEY or run `codex login --api-key`"
+        )
+    return key
+
+
+@lru_cache(maxsize=1)
+def _http_client() -> httpx.AsyncClient:
+    """One pooled client for every model built here. Keepalive is the whole point."""
+    settings = get_settings()
+    return httpx.AsyncClient(
+        http2=True,
+        timeout=settings.PROVIDER_TIMEOUT_S,
+        limits=httpx.Limits(
+            max_keepalive_connections=settings.PROVIDER_MAX_KEEPALIVE,
+            keepalive_expiry=90,
+        ),
+    )
+
+
+@lru_cache(maxsize=16)
+def get_model(model: str | None = None, temperature: float = 0.0) -> "BaseChatModel":
+    """The LLM instance for `create_deep_agent(model=...)`.
+
+    Cached on (model, temperature): the second call reuses the client AND its
+    connection pool, which is the 50-300 ms of TLS setup that per-request
+    construction used to pay before the model was asked anything.
+
+    NOTE ->> This is the wire-format path, NOT `AsyncCodex`. The codex client
+    NOTE ->> drives the binary over JSON-RPC and is not a `BaseChatModel`, so it
+    NOTE ->> cannot be handed to deepagents -- only its credential crosses over.
+    """
+    from langchain_openai import ChatOpenAI  # lazy -- keeps ~200 ms off the fast path
+
+    settings = get_settings()
+    return ChatOpenAI(
+        model=model or settings.CODEX_DEFAULT_MODEL,
+        temperature=temperature,
+        api_key=_codex_api_key(),
+        base_url=settings.CODEX_BASE_URL,
+        http_async_client=_http_client(),
+    )
+
+
+if __name__ == "__main__":
+
+    async def main() -> None:
+        llm = await CodexAuth()()
+        print(f"model ready: {llm.model_name} -- pass this to create_deep_agent(model=...)")
+
+    asyncio.run(main())
