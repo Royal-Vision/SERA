@@ -3,10 +3,9 @@ name = "sera-ai"
 version = "0.1.0"
 description = "SERA AI backend"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = "==3.14.7"
 
 dependencies = [
-    "accelerate>=1.13.0",
     "alembic>=1.16.0",
     "anyio>=4.13.0",
     "asyncpg>=0.31.0",
@@ -18,7 +17,7 @@ dependencies = [
     "langchain-core>=1.4.0",
     "langchain-google-genai>=4.2.2",
     "minio>=7.2.20",
-    "mlflow[ragas]>=3.12.0",
+    "mlflow>=3.12.0",
     "orjson>=3.11.8",
     "prometheus-fastapi-instrumentator>=7.1.0",
     "psycopg[binary]>=3.3.4",
@@ -31,39 +30,39 @@ dependencies = [
     "qdrant-client>=1.18.0",
     "redis>=7.4.0",
     "sqlmodel>=0.0.38",
-    "torch>=2.12.0",
-    "torchvision>=0.27.0",
-    "transformers>=4.57.1",
     "uvicorn[standard]>=0.44.0",
-    "ninja>=1.13.0",
     "presidio-analyzer>=2.2.362",
     "presidio-anonymizer>=2.2.362",
-    "langchain-huggingface>=1.2.2",
-    "flagembedding>=1.4.0",
     "ragas>=0.4.3",
     "boto3>=1.43.14",
-]
-
-[[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu126" }
-torchvision = { index = "pytorch-cu126" }
-
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-    "pytest-mock>=3.15.1",
+    "langchain-xai>=1.2.2",
+    "langchain-ollama>=1.1.0",
+    # Event loop: uvloop refuses to build on Windows, winloop is Windows-only.
+    # perf.install_event_loop_policy() picks whichever is importable.
+    "uvloop>=0.22.1; sys_platform != 'win32'",
+    "winloop>=0.6.3; sys_platform == 'win32'",
+    "mypy>=2.3.1",
+    "deepagents>=0.7.11",
+    "openai-codex>=0.147.0",
 ]
 
 [tool.uv]
 package = false
 
 [tool.pytest.ini_options]
-testpaths = ["app/blueprints/rag_eval/tests"]
+testpaths = ["tests", "app/blueprints/rag_eval/tests"]
 markers = [
     "integration: hits external services (MLflow, Qdrant, OpenAI judge). Slow + may incur small cost.",
 ]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "pytest>=9.0.3",
+    "pytest-mock>=3.15.1",
+    "ty>=0.0.1a20",
+    "ruff>=0.16.4",
+]
+
+[tool.ty.src]
+exclude = ["app/agent/_old", "app/blueprints/old"]

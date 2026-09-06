@@ -3,7 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
-from app.blueprints.utilities.metrics import get_metrics, start_metrics_server
+from app.blueprints.agent.routes import router as agent_router
+from app.blueprints.old.utilities.metrics import get_metrics, start_metrics_server
 from app.configs.config import settings
 from app.configs.logger import get_logger
 import uvicorn
@@ -33,6 +34,7 @@ app = FastAPI(
     debug=settings.DEBUG,
     lifespan=lifespan,
 )
+app.include_router(agent_router, prefix="/agent", tags=["agent"])
 
 
 @app.get("/health")

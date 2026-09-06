@@ -1,0 +1,25 @@
+{
+  // Autocomplete off for Python in this workspace -- the exercises in test.py
+  // are meant to be typed from memory, not accepted from a popup.
+  "[python]": {
+    "editor.quickSuggestions": {
+      "other": false,
+      "comments": false,
+      "strings": false
+    },
+    "editor.suggestOnTriggerCharacters": false,
+    "editor.wordBasedSuggestions": "off",
+    "editor.acceptSuggestionOnEnter": "on",
+    "editor.tabCompletion": "off",
+    "editor.parameterHints.enabled": false,
+    "editor.inlineSuggest.enabled": false
+  },
+  "python.analysis.autoImportCompletions": false,
+
+  // Notebook output: wrap long lines onto new lines instead of clipping them
+  // at the right edge of the screen, and show more of a long output before
+  // it gets truncated.
+  "notebook.output.wordWrap": true,
+  "notebook.output.textLineLimit": 200,
+  "notebook.output.scrolling": false
+}
