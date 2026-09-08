@@ -1,112 +1,121 @@
-# SERA Agent — Build Plan
+# Agent runtime reference
 
-**Status:** v3 · **Last updated:** 2026-08-21
+[Project documentation](../README.md) | [Reviewer build guide](../reviewer/README.md)
 
-**What we are building:** the Python **agent backend** for a coding agent — a tool
-engine, a permission model, a provider abstraction and an agent loop, exposed over
-NDJSON on stdio.
+Status: condensed design reference. This replaces the earlier phase-by-phase
+coding-agent plan and tool tutorial. It is not an inventory of implemented features.
+The small reviewer starts with a fixed workflow and one bounded model request;
+an autonomous tool loop is a later capability.
 
-**What we are not building here:** the CLI. That is React Ink (Node/TS), built
-separately against the protocol defined in [Phase 01](phase-01-runtime.md).
+## Responsibility boundaries
 
-**The one design constraint:** when a user signs in with Codex, Antigravity or Ollama,
-the only thing they should feel is *their own LLM*. Everything SERA adds is invisible.
+| Part | Responsibility | Boundary |
+| --- | --- | --- |
+| Contracts | Inputs, results, evidence, limits, and typed errors | Independent of provider SDKs, graph wiring, and presentation |
+| Repository tools | Read the selected snapshot and return bounded evidence | Cannot silently switch to the live working tree |
+| Registry | Resolve available tool names and schemas | Availability does not itself authorize execution |
+| Policy | Decide whether an actual operation is permitted | Evaluates normalized arguments and effective access |
+| Executor | Validate, authorize, enforce timeout, execute, normalize outcomes | Every agent tool uses the same execution boundary |
+| Provider | Translate model messages, responses, and capability differences | No Git access, context selection, or review policy |
+| LangGraph coordinator | Select stages, track state, route completion/failure | Delegates operations to modules; does not implement them |
+| Presentation | Render progress and finalized results | Does not own review state or finding validity |
 
----
+The provider and repository layers must be usable without importing CLI or graph
+code. Reuse existing modules only after checking their behavior against these
+boundaries. Current code may contain scaffolding and older design assumptions.
 
-> **Lost, or starting the code?** Read **[BUILD-ORDER.md](BUILD-ORDER.md)** first. It
-> sequences these phases into concrete files with a gate per step, and answers the
-> Casbin question.
+## Model integration
 
-## How to read this
+Start with a fake provider that returns known candidates, then connect one real
+provider through a small explicit interface. Define request, response, error,
+usage, timeout, and cancellation behavior before expanding provider support.
 
-Each phase is one file, and each file answers four questions in order:
+- Record model identity and effective configuration with the review result.
+- Declare structured-output and tool-call capabilities instead of assuming every
+  compatible endpoint implements the same features.
+- Validate returned candidates even when the provider advertises structured output.
+- Do not require native tool calling for the v1 bounded analysis request.
+- Apply the configured source-transmission policy before dispatch. Do not silently
+  change provider or credentials after a failure.
+- Bound retries and distinguish transport failure, invalid model output, and a valid
+  empty finding list. A fake provider lets tests run without credentials.
+- Keep credentials out of graph state, prompts, and logs. Initialize clients only
+  when needed and close resources at their owning lifecycle boundary.
 
-1. **Why this phase exists** — the story, and what breaks without it
-2. **The architecture decision** — what we chose, what we rejected, and why
-3. **What to build** — modules, signatures, implementation style
-4. **The gate** — the measurable condition for moving on
+Existing [provider code](../../app/agent/providers/openai_compat.py) is a candidate
+integration point. Its presence alone does not establish that the review interface
+is complete. Repository comparison belongs in the review subsystem.
 
-Phases are ordered by dependency, not importance. Do not start one before its
-predecessor's gate passes; the gates are what stop the latency contract from eroding one
-convenient shortcut at a time.
+## Tools and execution, when needed
 
----
+Begin with committed file reads and searches. Describe each tool's name, input
+schema, result schema, effective capabilities, timeout, output limit, and concurrency
+constraints. A command-capable tool needs argument-sensitive policy; a generic
+read-only label is insufficient.
 
-## The phases
+An execution path should perform:
 
-| # | Phase | Why it exists | Effort |
-|---|---|---|---|
-| **00** | [Architecture](phase-00-architecture.md) | **How to choose the architecture.** Competitive landscape, the layer model, the latency contract. Read before writing any code | 0.5 d |
-| **01** | [Runtime & Protocol](phase-01-runtime.md) | A process that starts fast and speaks a stable protocol. Import discipline is set here or never | 0.5 d |
-| **02** | [Tool Contract](phase-02-tool-contract.md) | The `ToolSpec` metadata every later phase reads. The most load-bearing 200 lines in the system | 1 d |
-| **03** | [First Tool](phase-03-read-tool.md) | `read_file` — proves the whole loop on the smallest security surface | 0.5 d |
-| **04** | [Search Tools](phase-04-search-tools.md) | `glob` + `grep`. The biggest single determinant of how many turns a task takes | 1 d |
-| **05** | [**Tool Engine**](phase-05-tool-engine.md) | **Today.** Repair, dispatch, preconditions. ~75% of tool failures are recoverable without an LLM round-trip | 2 d |
-| **06** | [Mutation Tools](phase-06-mutation-tools.md) | `edit_file` + `write_file`, with no path to silent data loss | 1 d |
-| **07** | [Providers](phase-07-providers.md) | Codex / Antigravity / Ollama behind one warm registry | 1 d |
-| **08** | [**LangGraph Architecture**](phase-08-langgraph.md) | **Today.** Graph vs. agent, why we hand-build, state design, multi-agent | 1 d |
-| **09** | [Agent Loop](phase-09-agent-loop.md) | End to end: prompt in, tools run, tokens stream out | 2 d |
-| **10** | [Sessions & Context](phase-10-sessions.md) | Long conversations that stay affordable and resumable | 1.5 d |
-| **11** | [Permissions](phase-11-permissions.md) | The approval gate. Also the real defence against prompt injection | 1.5 d |
-| **12** | [Guardrails & PII](phase-12-guardrails.md) | Why Hermes and OpenClaw stay small and fast: policy in the harness, not the weights | 1 d |
-| **13** | [Deferred](phase-13-deferred.md) | Subagents, hooks, MCP, plugins — and why each waits | — |
+1. Tool lookup and input validation.
+2. Snapshot/path resolution and effective-operation classification.
+3. Authorization and any required preconditions.
+4. Bounded execution with cancellation support.
+5. Result normalization, truncation disclosure, and evidence attribution.
 
-**Total: ~14 days to a differentiated agent backend.**
+Argument repair, if introduced, must be narrow and observable. Revalidate and
+reauthorize the repaired operation; never repair a dangerous request into a different
+operation invisibly. Return useful structured tool failures while keeping internal
+tracebacks in controlled diagnostics. Preserve cancellation; do not swallow it as
+an ordinary error. Unexpected programming errors must remain diagnosable.
 
-**Appendix:** [Critique of the existing code](appendix-critique.md) — every file in the
-repo today, rated, with the specific defects.
+Concurrency is permitted only when operations are independent and resources allow
+it. Read-only operations can still contend for resources. Mutation tools, shell
+execution, and read-before-edit preconditions are outside the reviewer v1 scope.
 
----
+## Graph state and stopping
 
-## Today's path
+The v1 graph carries the review request, snapshot, evidence, candidates, stage
+outcomes, and result. Keep live clients and services in runtime dependencies rather
+than serializable state. Contracts should have one owner, even when a graph state
+references them.
 
-You are working on the tool engine and the LangGraph architecture. Read in this order:
+If a tool-calling investigator is later justified, give it explicit allowed tools,
+a fixed snapshot, wall-clock/model/tool budgets, and termination behavior. It should
+return candidates through the same validator. Detect repeated failures or lack of
+progress; more model calls are not proof of better analysis.
 
-1. **[Phase 00](phase-00-architecture.md)** — how to choose, and where the competitive
-   opening is. It frames both.
-2. **[Phase 05](phase-05-tool-engine.md)** — the engine. This is the phase that actually
-   differentiates the product.
-3. **[Phase 08](phase-08-langgraph.md)** — the graph, and why we do not use
-   `create_agent`.
+Cancellation must reach pending provider requests and subprocesses. Durable
+checkpointing is a separate decision: recording graph state alone does not make
+external side effects exactly-once. The v1 reviewer can rerun after a crash.
 
-Phases 02–04 and 06–07 are prerequisites for *running* the engine, but you can read 05
-and 08 first to make the architectural calls.
+## Verification
 
----
+- Use fake providers for valid, empty, malformed, and failed responses.
+- Verify context comes from captured revisions and discloses truncation.
+- Verify a denied operation never reaches execution.
+- Check timeout and cancellation behavior, including process cleanup.
+- Measure orchestration time separately from provider latency; do not copy old
+  machine-specific benchmark numbers as universal requirements.
+- Use the reviewer guide's known-defect and clean-change examples to assess quality.
 
-## The thesis in eight lines
+## Older phase references in source comments
 
-1. **Import cost is the startup latency.** `import langgraph.graph` costs ~1800 ms
-   (measured on this machine). Nothing below the graph layer may reach it.
-2. **Errors are prompts.** Whatever a failed tool returns becomes the model's next
-   input. `"ValidationError"` teaches nothing; the constraint plus valid values gets it
-   right on the retry.
-3. **Nothing escapes as an exception.** Every terminal state is a `ToolResult` the model
-   can read and recover from. An exception reaching the loop kills the turn.
-4. **`read_only` and `concurrency_safe` are load-bearing**, not documentation. They
-   decide what runs in parallel, what is cached, and what needs approval.
-5. **Warm everything.** Chat clients and the compiled graph are built once, never per
-   invocation.
-6. **One agent until proven otherwise.** When you fan out, use `Send` so it costs one
-   call's wall clock rather than N.
-7. **Guardrails live in the harness, not the weights.** That is why model size and
-   policy are independent axes.
-8. **Measure against a stub provider.** It is the only honest picture of what SERA
-   itself costs.
+These numbers identify earlier design topics, not current build milestones.
+Historical details are available in Git; use the reviewer guide for today's order.
 
----
+| Earlier reference | Topic in this guide |
+| --- | --- |
+| Phase 00 | Responsibility boundaries and verification |
+| Phase 01 | Presentation and lifecycle boundaries |
+| Phase 02 | Contracts, registry, and execution |
+| Phases 03–04 | Read/search tools and bounded evidence |
+| Phase 05 | Validation, authorization, execution, and errors |
+| Phase 06 | Mutation tools, deferred from the reviewer |
+| Phase 07 | Model integration |
+| Phases 08–09 | Graph state and stopping |
+| Phase 10 | State ownership and optional recovery |
+| Phases 11–12 | Policy, credentials, and execution controls |
+| Phase 13 | [Future capabilities](../platform/README.md) |
 
-## Environment
-
-The venv is CPython **3.14.7**; `python` on PATH is **3.12.9**. Use
-`.venv/Scripts/python.exe` explicitly, or every benchmark lies to you.
-
-`winloop` is installed, so `install_event_loop_policy()` returns `winloop` rather than
-the stdlib Proactor loop on Windows.
-
-Scratch code from earlier sessions is untracked under `app/agent/` and `scripts/`. Treat
-it as reference, not the build. `scripts/bench_runtime.py` is worth keeping regardless —
-it is the harness behind every performance number in these documents.
-
-Earlier drafts of these documents are archived in `_old/`.
+Older Tool Contract SRS and Tool Catalog references refer to the same tool and
+execution topics above. This condensed guide supersedes their implementation
+sketches; it does not assert those sketches were implemented.
