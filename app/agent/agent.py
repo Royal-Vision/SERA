@@ -5,15 +5,24 @@ import asyncio
 from app.agent.providers.codex_langchain import CodexChatModel
 from app.agent.providers.openai_compat import CodexAuth
 from langgraph.graph import MessagesState, StateGraph, END, START
-
-
-codex = asyncio.run(CodexAuth()())
-llm = CodexChatModel(codex=codex)
-output = asyncio.run(llm.ainvoke('hello'))
-print(output)
-
+from langchain.messages import HumanMessage
 
 async def prompt_llm(state: MessagesState):
-    async with CodexAuth()() as codex:
-        codex:CodexChatModel = await CodexChatModel(codex=codex, model_name='GPT_5.5 Luna')
-        response = await codex.ainvoke(state['messages'])
+    async with await CodexAuth()() as codex:
+        chat = CodexChatModel(codex=codex, model_name='gpt-5.6-luna')
+        response = await chat.ainvoke(state['messages'])
+        return {'messages': [response]}
+
+
+async def main() -> None:
+    async with await CodexAuth()() as codex:
+        llm = CodexChatModel(codex=codex)
+        print(await llm.ainvoke('hello'))
+
+    output_response = await prompt_llm({'messages': [HumanMessage('hello')]})
+    print(f'output_reponse: {output_response.response}')
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
+
